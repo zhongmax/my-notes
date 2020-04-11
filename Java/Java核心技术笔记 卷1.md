@@ -229,7 +229,7 @@ public Employee(double s) {
 
 ## 第五章 继承
 
-### 5.1、超类与子类
+### 5.1 超类与子类
 
 **子类**比超类拥有的功能更加丰富，因为子类可以从超类中继承这些类的方法和域，也可以添加属于自己的方法与域。
 
@@ -315,4 +315,135 @@ public Manager getBuddy() {...}
 
 这两个 getBuddy 方法具有可协变得返回类型
 
-3）如果是 private、static、final 方法或者构造器，编译器可以准确知道应该调用哪个方法，这个调用方式成为静态绑定
+3）如果是 private、static、final 方法或者构造器，编译器可以准确知道应该调用哪个方法，这个调用方式成为**静态绑定**（static binding）。与之对应的是，调用的方法依赖于隐式参数的实际类型，并在运行时实现动态绑定。
+
+4）当程序运行，并采用动态绑定调用方法时，虚拟机一定调用与 x 所引用对象的实际类型最合适的那个类的方法。假设 x 的实际类型是 D，它是 C 类的子类。如果 D 类定义了方法 f(String)，就直接调用它；否则，将在 D 类的超类中运行 f(String)，以此类推。
+
+由于每次调用方法，时间开销相当大，因此虚拟机为每个类创建了一个**方法表**（method table），其中列出了所有方法的签名和实际调用的方法。这样在调用方法之前，虚拟机仅查找这个表就可以了。一个类的方法表类似下面这样：
+
+```java
+// Employee 类
+getName() -> Employee.getName();
+getSalary() -> Employee.getSalary();
+getHireDay() -> Employee.getHireDay();
+raiseSalary(double) -> Employee.raiseSalary(double);
+
+// Manager 类
+getName() -> Employee.getName();
+getSalary() -> Manager.getSalary();
+getHireDay() -> Employee.getHireDay();
+raiseSalary(double) -> Employee.raiseSalary(double);
+setBonus(double) -> Manager.setBonus(double);
+```
+
+在上面的代码中，我们新建了三个 Employee 的对象变量，将一个 Manager 的变量对象放在里面，程序是怎么进行判断的呢？
+
+```java
+for (Employee e : staff) {
+    System.out.println(e.getName() + " " + e.getSalary());
+}
+```
+
+在运行时，调用 e.getSalary() 的解析过程为：
+
+1）首先，虚拟机提取 e 的实际类型的方法表，可以能是 Employee、Manager 的方法表。
+
+2）接下来，虚拟机搜索定义的 getSalary 签名的类，此时，虚拟机已经知道该调用哪个方法。
+
+3）最后，虚拟机调用方法。
+
+动态绑定还有一个重要特性，无需对现存代码进行修改，就可以对程序进行扩展。
+
+比如新增一个 Executive 类，变量 e 有可能引用这个类的对象，我们不需要对 e.getSalary 的代码进行重新编译。
+
+**注意**：在覆盖一个方法的时候，子类方法不能低于超类方法的可见性。
+
+### 5.3 阻止继承：final类与方法
+
+在定义某个类的时候，使用 final 修饰符声明，则可以阻止人们定义该类的子类，例如 String 类就是 final 类，不允许任何人定义 String 的子类。
+
+在类的方法中，使用 final，则子类不能覆盖这个方法。
+
+当然，类中的属性(域)也可以声明为 final，对于这种属性，构造对象后，就不允许改变他们的值了
+
+```java
+// 类使用 final
+public final class Executive extends Manager {
+    ...
+}
+// 类的方法使用 final
+public class Employee {
+    // 不能更改
+    final String xxx = "233";
+    ...
+    // 子类不能覆盖该方法
+    public final String getName() {
+        return name;
+    }
+}
+```
+
+### 5.4 抽象类
+
+在类的设计中，通常上层的类更具有通用性，甚至更加抽象。我们可以建立一个抽象类，将它派生为其他类的基类，而不作为想使用的特定的实例类。
+
+在 Java 中，我们使用 abstract 关键字让一个类变成抽象类。
+
+**注意**：包含一个或多个抽象方法的类本身必须声明为抽象的。
+
+在一个抽象类中的抽象方法，只是充当占位的角色，它们的具体实现在子类中。扩展抽象类，有两种方式，一是在抽象类中定义部分抽象类方法或补丁已抽象类方法，这样就必须将子类也标记为抽象类；二是定义全部的抽象方法，这样子类就不是抽象的了。例：
+
+```java
+// 抽象类 Person
+public abstract class Person {
+    private String name;
+    public Person(String name) {
+        this.name = name;
+    }
+    // 抽象方法，没有具体实现
+    public abstract String getDescription();
+    ...
+}
+
+// 扩展抽象类 Student
+public class Student extends Person {
+    private String major;
+    // 构造方法，其中 name 为超类的域
+    publiic Student(String name, String major) {
+        super(name);
+        this.major = major;
+    }
+    
+    // 实现抽象方法，子类就不为抽象的
+    public String getDescription() {
+        return "xxx";
+    }
+}
+```
+
+由于抽象类不能实例化对象，所有抽象的对象只能引用它的子类的对象。例：
+
+```java
+Person[] people = new Person[2];
+people[0] = new Employee();
+people[1] = new Student();
+```
+
+### 5.5 受保护访问
+
+通常，我们知道在一个类中，将域标识为 private，而方法标识为 public ，声明为 private 的内容对其他类都是不可见的，对于子类也是一样的。
+
+如果我们希望超类中的内容能被子类访问，可以将这些方法或域声明为 protected ，这样子类就可以访问超类的内容。
+
+**注意**：如果将超类的中的域声明为 protected，对于使用这个类的其他子类，都可以访问受保护的域，这样违背了 OOP 提倡的数据封装原则。而受保护的方法更有实际意义。
+
+Java四个访问修饰符：
+
+1）仅对本类可见----private
+
+2）对所有类可见----public
+
+3）对本包和所有子类可见----protected
+
+4）对本包可见----默认，不需要修饰符
+
