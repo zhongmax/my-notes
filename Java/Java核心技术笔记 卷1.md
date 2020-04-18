@@ -592,7 +592,352 @@ int[] a = {1, 2, 3, 4, 5};
 a = (int[]) goodCopyOf(a, 10);
 ```
 
-#### 5.7.6 调用任意方法
+### 5.7 继承的设计技巧
 
+1. 将公共操作和域放在超类
+2. 不要使用受保护的域
+3. 使用继承实现 is-a 关系（需要明确继承的类是否与超类有关联）
+4. 除非所有继承的方法都有意义，否则不要使用继承
+5. 在覆盖方法时，不要改变预期的行为（不要毫无原由的改变行为）
+6. 使用多台，而非类型信息（使用多态和接口比多类型检测更易于维护和扩展）
+7. 不要过多地使用反射（反射很脆弱）
 
+## 第六章 接口、lambda表达式与内部类
+
+### 6.1 接口
+
+#### 6.1.1 接口概念
+
+在 Java 中，接口不是类，而是对类的一组需求描述，这些类要遵从接口描述的统一格式进行定义。
+
+对于实现了某个接口的类，需要实现接口中的方法。例如，Arrays 类中的 sort 方法可以对对象数组进行排序，但对象所属的类必须实现了 Comparable 接口。下面为 Comparable 接口代码:
+
+```java
+public interface Comparable {
+    int compareTo(Object other);
+}
+```
+
+注：在 Java SE 5.0，Comparable 接口已经改进为泛型类型
+
+```java
+public interface Comparable<T> {
+    int compareTo(T other);
+}
+// 实现
+int compareTo(Employee other);
+```
+
+接口中的所有方法自动属于 public。因此，在接口声明方法时，不必提供关键字 public。
+
+接口绝不能含有实例域，在 Java SE 8 之前，不能在接口中实现方法，而在 8 后，可以在接口中提供简单方法，但是这些方法也不能引用实例域，接口没有实例。
+
+提供实例域和方法应该是实现接口的类完成的工作，可以把接口看成是没有实例域的抽象类（还是有一定区别）。
+
+实现接口分为两个步骤：
+
+1）将类声明为实现给定的接口。
+
+2）对接口中的所有方法进行定义。
+
+将类声明为实现某个接口，需要使用关键字 implements。
+
+```java
+class Employee implements Comparable {
+    // 需要实现 compareTo 方法
+    public int compareTo(Object otherObject) {
+        Employee other = (Employee) otherObject;
+        return Double.compare(salary, other.salary);
+    }
+}
+```
+
+为什么不能在 Employee 类中直接提供一个 compareTo 方法，而必须实现 Comparable 接口呢？
+
+主要原因是 Java 是一种强类型语言，在调用方法时，编译器会检查这个方法是否存在。在 sort 方法中可能存在下面这样的语句：
+
+```java
+if (a[i].compareTo(a[j]) > 0) {
+    ...
+}
+```
+
+为此，编译器必须确认 a[i] 一定有 compareTo方法。如果 a 是一个 Comparable 对象的数组，就可以确保拥有 compareTo 方法，因此每个实现 Comparable 接口的类都必须提供这个方法的定义。
+
+#### 6.1.2 接口的特性
+
+接口不是类，不能通过 new 运算符实例化一个接口。虽然不能构造接口对象，但是可以声明接口的变量；接口变量必须引用了接口的类对象。
+
+使用 instance 可以检查一个对象是否实现了某个特定的接口。
+
+```java
+// Error
+x = new Comparable(...);
+// OK
+Comparable x;
+// OK provided Employee implements Comparable
+x = new Employee(...);
+// instance
+if (anObject instanceof Comparable) {
+    ...
+}
+```
+
+接口也可以被扩展。例如，假设有一个称为 Moveable 接口：
+
+```java
+public interface Moveable {
+    void move(double x, doule y);
+}
+```
+
+然后，可以以它为基础扩展一个叫做 Powered 的接口：
+
+```java
+public interface Powered extends Moveable {
+    double milesPerGallon();
+}
+```
+
+虽然在接口中不能包含实例域或静态方法，但却可以包含常量：
+
+```java
+public interface Powered extends Moveable {
+    double milesPerGallon();
+    // a public static final constant
+    double SPEED_LIMIT = 95;
+}
+```
+
+与接口中的方法都自动设置爱为 public 一样，接口中的域都将自动设为 **public static final**。
+
+任何实现了接口的类都自动继承了这些常量。
+
+每个类只能拥有一个超类，但可以实现多个接口，这为定义类的行为提供了极大的灵活性。
+
+#### 6.1.3 接口和抽象类
+
+一个类只能扩展于一个类，如果 Employee 类已经扩展于一个类，例如 Person，如果再想扩展抽象类就会发生错误，但一个类可以像下面这样实现多个接口：
+
+```java
+// Error
+class Employee extends Person, Comparable {}
+// OK
+class Employee extends Person implements Comparable {}
+```
+
+有些程序语言允许一个类有多个超类，例如 C++，我们将此特性称为多重继承（multiple inheritance），Java不支持多重继承，主要原因是多继承会让语言本身变得复杂，效率也会降低（如同 Eiffel）。
+
+实际上，接口可以提供多重继承的大多数好处，还能避免多重继承的复杂性和低效性。
+
+#### 6.1.4 静态方法
+
+在 Java SE 8 中，允许在接口中增加静态方法。理论上讲，没有任何理由认为这是不合法的，只是有违于将接口作为抽象规范的初衷。
+
+通常的做法是将静态方法放在伴随类中。在标准库中，你会看到成对出现的接口和实用工具类，如 Collection/Collections 或 Path/Paths。
+
+在 Path 类中，可以为 Path 接口增加以下方法：
+
+```java
+// Paths 伴随类
+Paths.get("jdk1.8.0", "jre", "bin");
+// Java 8 中，这样写，可以不需要 Paths
+public interface Path {
+    public static Path get(String first, String... more) {
+        return FileSystems.getDefault().getPath(first, more);
+    }
+    ...
+}
+```
+
+这样一来，Paths 类就没有必要了，在实现接口的时候，不再需要为实用工具提供另外一个伴随类。
+
+#### 6.1.5 默认方法
+
+可以为接口方法提供一个默认实现。必须用 default 修饰符标记这样一个方法。
+
+```java
+public interface Comparable<T> {
+    defalut int comparaTo(T other) {
+        return 0;
+    }
+    ...
+}
+```
+
+但是这样做没有太大的用处，因为 Comparable 的每个实际实现都要覆盖这个方法。不过有些情况，默认方法可能有很有用。例如，希望在发生鼠标点击事件时得到通知，就要实现方法的接口。
+
+#### 6.1.6 解决默认方法冲突
+
+如果先在一个接口中将一个方法定义为默认方法，然后又在超类或另外一个接口中定义了同样的方法，会发生什么情况？
+
+在 Java 的相应的规则为：
+
+1）超类优先，如果一个超类提供了一个具体方法，同名且有相同参数类型的默认方法会被忽略。
+
+2）接口冲突，如果一个超接口提供了一个默认方法，另一个接口提供了一个 同名且参数类型相同的方法，必须覆盖这个方法来解决冲突。
+
+对于第二个规则。考虑另一个包含 getName 方法的接口：
+
+```java
+interface Named {
+    default String getName() {
+        return getClass().getName() + "_" + hashCode();
+    }
+}
+// 两个接口都有 getName 方法
+class Student implements Person, Named {
+    ...
+}
+```
+
+这时，类会继承 Person 和 Named 接口提供的两个不一致的  getName 方法，编译器会报告一个错误，需要自行解决。只需要在 Student 类中提供一个 getName 方法，在这个方法中，选择其中一个方法就可以了。
+
+```java
+class Student implements Person, Named {
+    public String getName() {
+        return Person.super.getName();
+    }
+}
+```
+
+### 6.2 接口示例
+
+#### 6.2.1 接口与回调
+
+**回调**（callback）是一种常见的程序设计模式。在这种模式中，可以指出某个特定事件发生时应该采取的动作。例如，可以指出在按下鼠标或选择某个菜单项时，应该采取什么行动。
+
+在构造定时器时，需要设置一个时间间隔，并告之定时器，当到达时间间隔需要做些什么操作。
+
+如何告之定时器做什么呢？在很多程序设计语言中，可以提供一个函数名，定时器周期性调用它。但是在 Java 标准类库中的类采用的是面向对象方法。它将某个类的对象传递给定时器，然后定时器调用这个对象的方法。
+
+定时器还需要知道调用哪个方法，并要求传递的对象所属的类实现了 java.awt.event 包的 ActionListener 接口。
+
+```java
+public interface ActionListener {
+    void actionPerformed(ActionEvent event);
+}
+```
+
+当到达指定时间间隔，定时器就调用 actionPerformed 方法。
+
+下面这个这个程序，运行后会显示一个包含 “Quit program？”字样的对话框，并且10秒后会在控制台输出定时器消息。
+
+```java
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.Date;
+
+/**
+ * Author: maxwell
+ * Date: 2020/4/18
+ * Desc:
+ */
+public class TimerTest {
+    public static void main(String[] args) {
+        ActionListener listener = new TimerPrinter();
+
+        // construct a timer that calls the listener
+        Timer t = new Timer(10000, listener);
+        t.start();
+        JOptionPane.showMessageDialog(null, "Quit program?");
+        System.exit(0);
+    }
+}
+
+class TimerPrinter implements ActionListener {
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        System.out.println("Ac thye tone, the time is " + new Date());
+        Toolkit.getDefaultToolkit().beep();
+    }
+}
+```
+
+#### 6.2.2  对象克隆
+
+这一节，我们会使用 Cloneable 接口实现对象的克隆。
+
+这个接口提供了一个安全的 clone 方法。通过 clone 方法，可以将一个对象复制一份，两个对象拥有不同的状态。
+
+但需要注意的是，clone 方法是 Object 的一个 protected 方法，这说明你的代码不能直接调用这个方法。只有 Employee 类可以克隆 Employee 对象。而且如果克隆的对象包括了子对象的引用，拷贝域也会得到相同的子对象的引用，这样原对象和克隆对象还是会有一些共享信息，这种默认的克隆操作称为**浅拷贝**，它并没有克隆对象中引用的其他对象。
+
+对于浅拷贝会有什么影响？这要看具体情况。如果原对象和浅克隆对象共享的子对象是不可变得，那么这种共享是安全的。如果子对象是可变的，必须重新定义 clone 方法来建立一个深拷贝，同时克隆所有子对象。
+
+下方代码克隆了 Employee 类的一个实例，并且为子对象也建立拷贝。
+
+```java
+public class CloneTest {
+    public static void main(String[] args) {
+        Employee original = new Employee("John Q. Public", 50000);
+        original.setHireDay(2000, 1, 1);
+        try {
+            Employee copy = original.clone();
+            copy.raiseSalary(10);
+            copy.setHireDay(2002, 12, 31);
+            System.out.println("original = " + original);
+            System.out.println("copy = " + copy);
+        } catch (CloneNotSupportedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+public class Employee implements Cloneable {
+    private String name;
+    private double salary;
+    private Date hireDay;
+
+    public Employee() {
+    }
+
+    public Employee(String name, double salary) {
+        this.name = name;
+        this.salary = salary;
+        hireDay = new Date();
+    }
+
+    public Employee clone() throws CloneNotSupportedException {
+        Employee cloned = (Employee) super.clone();
+        cloned.hireDay = (Date) hireDay.clone();
+        return cloned;
+    }
+
+    @Override
+    public String toString() {
+        return "Employee{" +
+                "name='" + name + '\'' +
+                ", salary=" + salary +
+                ", hireDay=" + hireDay +
+                '}';
+    }
+
+    public void raiseSalary(double byPercent) {
+        double raise = salary * byPercent / 100;
+        salary += raise;
+    }
+
+    public double getSalary() {
+        return salary;
+    }
+
+    public void setSalary(double salary) {
+        this.salary = salary;
+    }
+
+    public Date getHireDay() {
+        return hireDay;
+    }
+
+    public void setHireDay(int year, int month, int day) {
+        Date newHireDay = new GregorianCalendar(year, month -1, day).getTime();
+        hireDay.setTime(newHireDay.getTime());
+    }
+}
+```
+
+### 6.3 lambda 表达式
 
