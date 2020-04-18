@@ -570,3 +570,29 @@ setAccessible 方法是 AccessibleObject 类中的一个方法，它是 Field、
 
 #### 5.7.5 使用反射编写泛型数组代码
 
+Java.lang.reflect 包中的 Array 类允许动态地创建数组，可以使用这一特性，实现扩展已经填满的数组。
+
+通过获取传入数组的类型、新数组的长度，使用 Array.newInstance(componentType, newLength) 创建一个与传入类型相同的数组。下面为实现代码：
+
+```java
+public static Object goodCopyOf(Object a, int newLength) {
+    Class c1 = a.getClass();
+    if (!c1.isArray()) {
+        return null;
+    }
+    Class componentType = c1.getComponentType();
+    int length = Array.getLength(a);
+    Object newArray = Array.newInstance(componentType, newLength);
+    System.arraycopy(a, 0, newArray, 0, Math.min(length, newLength));
+    return newArray;
+}
+
+// 使用
+int[] a = {1, 2, 3, 4, 5};
+a = (int[]) goodCopyOf(a, 10);
+```
+
+#### 5.7.6 调用任意方法
+
+
+
