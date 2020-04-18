@@ -447,3 +447,126 @@ Java四个访问修饰符：
 
 4）对本包可见----默认，不需要修饰符
 
+### 5.6 反射
+
+反射是 Java 的特征之一，它允许运行中的 Java 程序获取自身的信息，并且可以操作类或对象的内部属性。
+
+反射机制可以用来：
+
+- 在运行时分析类的能力
+- 在运行时查看对象，例如，编写一个 toString 方法供所有类使用
+- 实现通用的数组操作代码
+- 利用 Method 对象，这个对象很像 C++ 中的函数指针
+
+#### 5.6.1 Class类
+
+在 Java 中可以通过一个类 Class 访问所有对象的所属的类，Object 类中 getClass() 方法将会返回一个 Class 类型的实例。
+
+```java
+Employee e;
+Class c1 = e.getClass();
+System.out.println(e.getClass());
+```
+
+上面的输出为类的名字，如果类在一个包中，包的名字也会作为类名的一部分。
+
+也可以调用静态方法 forName 获取类名对应的 Class 对象。
+
+```java
+String className = "java.util.Random";
+Class c1 = Class.forName(className);
+```
+
+使用 forName 方法，只有 className 为 类名或接口名才能执行，否则 forName 方法会抛出一个 checked exception (已检查异常)。所有使用这个方法，需要提供一个异常处理器 (exception handler)
+
+可以使用 == 运算符比较两个类的对象。
+
+可以使用 newInstance() 方法，动态创建一个类的实例
+
+```java
+e.getClass().newInstance();
+```
+
+将 forName 与 newInstance 配合使用，可以根据存储在字符串中的类名创建一个对象
+
+```java
+String s = "java.util.Random";
+Object m = Class.forName(s).newInstance();
+```
+
+注：如果需要向类的构造器提供参数，就不要使用上面那条语句，而必须使用 Constructor 类中的 newInstance 方法。
+
+#### 5.6.2 捕获异常
+
+当程序运行过程中发生错误时，会抛出异常，抛出异常比终止程序要灵活得多，想要抛出异常，则需要提供一个“捕获”异常的处理器，对异常情况进行处理。
+
+异常有两种类型：
+
+- 未检查异常
+- 已检查异常
+
+对于已检查异常，编译器将会检查是否提供了处理器。
+
+未检查异常，编译器不会查看是否提供了处理器，例如 访问 null 引用就属于未检查异常。
+
+使用 try-catch 语句处理异常
+
+```java
+try {
+    ...
+} catch (Exception e) {
+    e.printStackTrace();
+}
+```
+
+如果 try 中的语句发生异常，则会跳到 catch 子句，利用 Throwable 类的 printStackTrace 方法打印出栈的轨迹，Throwable 是 Exception 类的超类。
+
+对于已检查异常，只需提供相应的异常处理器，可以很容易的抛出已检查异常的方法。
+
+#### 5.6.3 利用反射分析类的能力
+
+下面简要介绍反射机制最重要的内容--检查类的结构。
+
+在 java.lang.reflect包中有三个类 Field、Method 和 Constructor，它们分别用于描述类的域、方法和构造器。三个类都有一个叫 getName 的方法，用来返回项目的名称。
+
+Field 类中有一个 getType 方法，用来返回域所属类型的 Class 对象。
+
+Method 和 Constructor 类有能够报告参数类型的方法，Method 类还有一个可以报告返回类型的方法。
+
+三个类还有一个叫做 getModifiers 的方法，它返回一个整型数值，用不同的位开关描述 public 和 static 这样的修饰符使用情况。也可以利用 java.lang.reflect 包中的 Modifier 类的静态方法分析 getModifiers 返回的整型数值，例如，可以使用 Modifier 类中的 isPublic、isPrivate 或 isFinal 判断方法或构造器是否为 public 、private 或 final。
+
+Class 类中的 getFields、getMethods 和 getConstructor 方法将分别返回类提供的 public 域、方法和构造器数组，其中包括超类的公有成员。
+
+Class 类的 getDeclareFields、getDeclareMethods 和 getDeclaredConstructors 方法将返回类中声明的全部域、方法和构造器，包括私有和受保护的成员，但不包括超类的成员。
+
+使用上述的类与方法可以实现查看类的域、方法和构造器。
+
+#### 5.6.4 在运行时使用反射分析对象
+
+利用反射机制，我们可以在编译时查看还不清楚的对象域。
+
+查看对象域的关键方法是 Field 类中的 get 方法。如果 f 是一个 Field 类型的对象，obj 是某个包含 f 域的类的对象，f.get(obj) 将返回一个对象，其值为 obj 域的当前值，示例代码：
+
+```java
+Employee harry = new Employee("Harry Hacker", 35000, 10, 1, 1989);
+Class c1 = harry.getClass();
+
+Field f = c1.getDeclaredField("name");
+
+Object v = f.get(harry);
+```
+
+上述代码存在一个问题，由于 name 是一个私有域，所有 get 方法将会抛出一个 IllegalAccessException 异常，只有利用  get 方法才可以得到可访问的值。除非拥有访问权限，否则 Java 安全机制只允许查看任意对象有哪些域，而不允许读取它们的值。
+
+反射机制的默认行为受限于 Java 的访问控制，然鹅，如果一个 Java 程序没有收到安全管理器的控制，就可以覆盖访问控制。为了达到这个目的，需要调用 Field、Method或 Constructor 对象的 setAccessible 方法
+
+```java
+f.setAccessible(true);
+```
+
+setAccessible 方法是 AccessibleObject 类中的一个方法，它是 Field、Method 和 Constructor 类的公有超类。
+
+还有一个问题是，name 是一个 String，因此可以吧它作为 Object 返回，如果我们要返回 salary 域，它属于 double 类型，Java 中数值类型不是对象，要解决这个问题，可以使用 Field 类中的 getDouble 方法，也可以调用 get 方法。
+
+#### 5.7.5 使用反射编写泛型数组代码
+
