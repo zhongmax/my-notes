@@ -941,3 +941,34 @@ public class Employee implements Cloneable {
 
 ### 6.3 lambda 表达式
 
+#### 6.3.1 lambda 表达式语法
+
+lambda 表达式是一个可传递的代码块，可以在以后执行一次或多次。
+
+lambda 表达式的代码为下面这种格式
+
+```java
+// first.length() - second.length()
+(String first, String second) -> first.length() - second.length();
+```
+
+lambda 表达式形式：参数，箭头（->）以及一个表达式，如果要完成的代码一个表达式放不下，可以放在 {} 中，并包含显式的 return 语句。
+
+```java
+(String first, String second) -> {
+    if (first.length() < second.length()) {
+        return -1;
+    } else if (first.length() > second.length()) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+```
+
+即使 lambda 表达式没有参数，仍要提供空括号，就像无参数方法一样：
+
+```java
+() -> { for (int i = 100; i >= 0; i--) System.out.println(i); }
+```
+
