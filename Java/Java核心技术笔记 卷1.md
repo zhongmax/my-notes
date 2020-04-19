@@ -972,3 +972,141 @@ lambda 表达式形式：参数，箭头（->）以及一个表达式，如果�
 () -> { for (int i = 100; i >= 0; i--) System.out.println(i); }
 ```
 
+如果可以推导出一个 lambda 表达式的参数类型，则可以忽略其类型。
+
+```java
+// 编译器可以推导出 first 和 second 必然是字符串，因为这个 lambda 表达式赋值给了一个字符串比较器。
+Comparator<String> comp
+    = （first, second) -> first.length() - second.length();
+```
+
+如果方法只有一个参数，而且这个参数类型可以推导得出，那么还可以省略小括号：
+
+```java
+ActionListener listener = event -> 
+    System.out.println("The time is " + new Data());
+```
+
+无需指定 lambda 表达式的返回类型，lambda 表达式的返回类型会根据上下文推导出来。
+
+如果一个 lambda 表达式只在某些分支返回一个值，而在另外一个分支不返回值，这是不合法的。
+
+```java
+// Error
+(int x) -> { if (x >= 0) return 1;}
+```
+
+下面是一个在比较器和动作监听器中使用 lambda 表达式。
+
+```java
+import javax.swing.*;
+import java.util.Arrays;
+import java.util.Date;
+
+/**
+ * Author: maxwell
+ * Date: 2020/4/19
+ * Desc:
+ */
+public class LambdaTest {
+    public static void main(String[] args) {
+        String[] planets = new String[]{"Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn",
+                "Uranus", "Neptune"};
+        System.out.println(Arrays.toString(planets));
+        System.out.println("Sorted in dictionary order:");
+        Arrays.sort(planets);
+        System.out.println(Arrays.toString(planets));
+        System.out.println("Sorted by length: ");
+        Arrays.sort(planets, (first, second) -> first.length() - second.length());
+        System.out.println(Arrays.toString(planets));
+
+        Timer t = new Timer(1000, event -> System.out.println("The time is " + new Date()));
+
+        t.start();
+
+        JOptionPane.showMessageDialog(null, "Quit program?");
+        System.exit(0);
+    }
+}
+```
+
+#### 6.3.2 函数式接口
+
+在 Java 中已经有很多封装代码块的接口，如果 ActionListener 或 Comparator。lambda 表达式与这些接口是兼容的。
+
+对于只有一个抽象方法的接口，需要这种接口对象时，就可以提供一个 lambda 表达式。这种接口称为**函数式接口**（functional interface）
+
+下面以 Arrays.sort 方法为例，它第二个参数需要一个 Comparator 实例， Comparatoc 就是一个方法的接口，所有可以提供一个 lambda 表达式：
+
+```java
+Arrays.sort(words, (first, second) -> first.length() - second.length());
+```
+
+在底层，Arrays.sort 方法会接收实现了 Comparator<String> 的某个类的对象。在这个对象上调用 compare 方法会执行 lambda 表达式的体。
+
+最好把 lambda 表达式看做是一个函数，而不是一个对象，另外要接收 lambda 表达式可以传递到函数式接口。
+
+Lambda 表达式可以转换为接口，例如如下：
+
+```java
+Timer t = new Timer(1000, event -> {
+    System.out.println("xxx");
+    Toolkit.getDefaultToolkit().beep();
+});
+```
+
+与使用实现了 ActionListener 接口的类相比，这个代码可读性要好的多。
+
+实际上，在 Java 中，对 lambda 表达式所能做的也只是能转换为函数式接口。
+
+Java API 在 java.util.function 包中定义了很多非常通用的函数式接口。其中一个接口 BiFunction<T, U, R> 描述了参数类型为 T 和 U 而且返回类型为 R 的函数。可以把我们的字符串比较 lambda 表达式保存在这个类型的变量中：
+
+```java
+BiFunction<String, String, Integer> comp
+    = (first, second) -> first.length() - second.length();
+```
+
+在 Java 中想要用 lambda 表达式做某些处理，需要知道表达式的用途，为它建立一个特定的函数式接口。
+
+Java.util.function 包中有一个尤其有用的接口 Predicate:
+
+```java
+public interface Predicate<T> {
+    boolean test(T t);
+}
+```
+
+ArrayList 类有一个 removeIf 方法，它的参数就是一个 Predicate。这个接口专门用来传递 lambda 表达式。例如下面的语句将从一个数组列表删除所有 null 值：
+
+```java
+list.removeIf(e -> e == null);
+```
+
+#### 6.3.3 方法引用
+
+有时，可能已经有现成的方法可以完成你想要的传递到其他代码的动作。例如，假设你希望只要出现一个定时器事件就打印这个事件对象。为此，可以这么调用:
+
+```java
+Timer t = new Timer(1000, event -> System.out.println(event));
+```
+
+但是，如果直接把 println 方法传递给 Timer 构造器就更好了。具体做法如下：
+
+```java
+Timer t = new Timer(1000, System.out::println);
+```
+
+表达式 System.out::println 是一个**方法引用**（method reference），它等价于 lambda 表达式 x -> System.out.println(x);
+
+从上面的例子可以看出，要使用 :: 操作符分隔方法名和对象或类名。主要有 3 种情况：
+
+- Object::instanceMethod
+- Class::staticMethod
+- Class::instanceMethod
+
+前 2 种情况中，方法引用等价于提供方法参数的 lambda 表达式。例如 System.out::println 等价于 x -> System.out.println(x)，Math::pow 等价于 (x, y) -> Math.pow(x, y)。
+
+第 3 种情况，第1个参数会成为方法的目标。例如，String::compareToIgnoreCase 等同于 (x, y) -> x.compareToIgnoreCase(y)。
+
+#### 6.3.4 构造器引用
+
