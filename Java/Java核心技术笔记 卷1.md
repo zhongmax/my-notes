@@ -980,7 +980,7 @@ Comparator<String> comp
     = （first, second) -> first.length() - second.length();
 ```
 
-如果方法只有一个参数，而且这个参数类型可以推导得出，那么还可以省略小括号：
+**如果方法只有一个参数，而且这个参数类型可以推导得出，那么还可以省略小括号：**
 
 ```java
 ActionListener listener = event -> 
@@ -1109,4 +1109,100 @@ Timer t = new Timer(1000, System.out::println);
 第 3 种情况，第1个参数会成为方法的目标。例如，String::compareToIgnoreCase 等同于 (x, y) -> x.compareToIgnoreCase(y)。
 
 #### 6.3.4 构造器引用
+
+构造器引用与方法引用类似，只不过方法名为 new。例如，Person::new 是 Person 构造器的一个引用。哪一个是构造器呢？这取决于上下文。假设你有一个字符串列表。可以把它转换为一个 Person 对象数组，为此要在各个字符串上调用构造器：
+
+```java
+ArrayList<String> names = ...;
+Stream<Person> stream = names.stream().map(Person::new);
+List<Person> people = stream.collect(Collectors.toList());
+```
+
+上面代码中的 map 方法会为各个列表元素调用 Person(String) 构造器。如果有多个 Person 构造器，编译器会选择一个 String 参数的构造器，这是通过上下文推导出的。
+
+可以使用数组类型建立构造器引用。例如：int[]::new 是一个构造器引用，它有一个参数：即数组的长度。这等价于 lambda 表达式 x -> new int[x]。
+
+Java 有一个限制，无法构造泛型类型 T 的数组。数组构造器对于克服这个限制很有用。
+
+#### 6.3.5 变量作用域
+
+通常，你可能希望能够在 lambda 表达式中访问外围方法或类中的变量。例如下面这个例子：
+
+```java
+public static void repeatMessage(String text, int delay) {
+    ActionListener listener = event -> {
+        System.out.println(text);
+        Toolkit.getDefaultToolkit().beep();
+    };
+    new Timer(delay, listener).start();
+}
+// 调用
+repeatMessage("Hello", 1000);
+```
+
+注意，在 lambda 表达式中的变量 text，这个变量是来自 repeatMessage 方法的一个参数变量。如果这个 lambda 表达式在 repeatMessage 调用返回很久以后才运行，而那时这个参数变量已经不存在了，该如何保留这个 text 变量？
+
+要了解到底会发生什么，下面来巩固一下我们对 lambda 表达式的理解。lambda 表达式有 3 个部分：
+
+1）一个代码块；
+
+2）参数；
+
+3）自由变量的值，这是指非参数而且不在代码中定义的变量。
+
+在上面这个例子中，lambda 表达式有1个自由变量 text。表示 lambda 表达式的数据结构必须存储自由变量的值，在这里就是字符串 "Hello"。我们说它被 lambda 表达式捕获（captured）例如：如果把一个 lambda 表达式转化为包含一个方法的对象，这样自由变量的值就会复制到这个对象的实例变量中。
+
+**注：**关于代码块以及自由变量值有一个术语：闭包（closure）。在 Java 中，lambda 表达式就是闭包。
+
+可以看到，lambda 表达式可以捕获外围作用域中变量的值，但是捕获的变量，在 lambda 表达式中，只能引用值不会改变的变量。例如，下面的做法是不合法的：
+
+```java
+public static void countDown(int start, int delay) {
+    ActionListener listener = event -> {
+        start--; // error
+        ...
+    };
+    ...
+}
+```
+
+之所以有这个限制，是因为如果在 lambda 表达式中可以改变变量，并发执行多个动作时会不安全。
+
+另外如果在 lambda 表达式中引用的变量，而这个变量可能在外部改变，这也是不合法的。例如：
+
+```java
+public static void repeat(String text, int count) {
+    for (int i = 1; i <= count; i++) {
+        ActionListener listener = event -> {
+            // Error: Cannot refer to changing i
+            System.out.println(i + ": " + text);
+        }
+    }
+}
+```
+
+这里有一条规则：**lambda 表达式中捕获的变量必须是最终变量**（effectively final）。最终变量指的是，这个变量初始化后就不会再为它赋新值。
+
+Lambda 表达式的体育嵌套块有相同的作用域，所有在 lambda 表达式中声明一个与局部变量同名的参数或局部变量是不合法的。
+
+```java
+Path first = Paths.get("/usr/bin");
+Comparator<String> comp = (first, second) -> first.length() - second.length();
+// Error: Variable first already defined
+```
+
+在一个 lambda 表达式中使用 this 关键字时，是指创建这个 lambda 表达式的方法的 this 参数。例如：
+
+```java
+public class Application() {
+    public void init() {
+        ActionListener listener = event -> {
+            System.out.println(this.toString());
+            ...
+        }
+    }
+}
+```
+
+表达式 this.toString() 会调用 Application 对象的 toString 方法，而不是 ActionListener 实例的方法。
 
