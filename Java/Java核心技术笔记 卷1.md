@@ -1206,3 +1206,419 @@ public class Application() {
 
 表达式 this.toString() 会调用 Application 对象的 toString 方法，而不是 ActionListener 实例的方法。
 
+#### 6.3.6 处理 lambda 表达式
+
+使用 lambda 表达式的重点是**延迟执行**（deferred execution）。如果想要立即执行，完全可以直接执行，而不需要把它包装在一个 lambda 表达式中。之所以希望以后执行代码有很多原因，如：
+
+- 在一个单独的线程中运行代码；
+- 多次运行代码；
+- 在算法的适当位置运行代码 (例如：排序中的比较操作)；
+- 发生某种情况时执行代码 (如：点击了一个按钮，数据到达等等)；
+- 只在必要时运行代码。
+
+比如你想要重复一个动作 n 次。将这个动作和重复次数传递到一个 repeat 方法：
+
+```java
+repeat(10, () -> System.out.println("Hello, World!"));
+```
+
+要接受这个 lambda 表达式，需要选择一个函数接口，这里我们使用 Runnable 接口：
+
+```java
+public static void repeat(int n, Runnable action) {
+    for (int i = 0; i < n; i++) {
+        action.run();
+    }
+}
+```
+
+需要说明，调用 action.run() 时会执行这个 lambda 表达式的主体。
+
+![](http://images.csmaxwell.xyz/20200422190215.png)
+
+现在让这个例子更复杂一下。我们希望告诉这个动作它出现在哪一次迭代中。为此，需要选择一个合适的函数式接口，其中要包含一个方法，这个方法有一个 int 参数而且返回类型为 void。处理 int 值得标准接口如下：
+
+```java
+public interface IntConsumer {
+    void accept(int value);
+}
+// 改进版
+public static void repeat(int n, IntConsumer action) {
+    for (int i = 0; i < n; i++) {
+        action.accept(i);
+    }
+}
+// 调用
+repeat(10, i -> System.out.println("Countdown: " + (9 - i)));
+```
+
+下面列出了基本类型 int、long 和 double 的34个可能的规范。最好使用这些特殊化规范来减少自动装箱。
+
+![](http://images.csmaxwell.xyz/20200422193746.png)
+
+### 6.4 内部类
+
+内部类（inner class）是定义在另一个类中的类。为什么需要使用内部类？主要原因有一下三点：
+
+- 内部类方法可以访问该类定义所在的作用域中的数据，包括私有的数据。
+- 内部类可以对同一个包中的其他类隐藏起来。
+- 当想要定义一个回调函数且不想编写大量代码时，使用**匿名**（anonymous）内部类比较便捷
+
+#### 6.4.1 使用内部类访问对象状态
+
+内部类的语法比较复杂，为此，我们选择一个简单但不太实用的例子说明内部类的使用方式。
+
+下面将进一步分析 TimerTest 示例，并抽象出一个 TalkingClock 类。构造一个语音时钟时需要提供两个参数：发布通告的间隔和开关铃声的标志。
+
+```java
+public class TalkingClock {
+    private int interval;
+    private boolean beep;
+    
+    public TalkingClock(int interval, boolean beep) {...}
+    public void start() {...}
+    
+    public class TimePrinter implements ActionListener {
+        ...
+    }
+}
+```
+
+需要注意，这里的 TimerPrinter 类位于 TalkingClock 类内部。这并不意味着每个 TalkingClock 都有一个 TimePrinter 实例域。TimerPrinter 对象是由 TalkingClock 类的方法构造。
+
+下面是 TimePrinter 类的详细内容。需要注意 actionPerformed 方法在发出铃声之前检查了 beep 标志。
+
+```java
+public class TimePrinter implements ActionListener {
+    public void actionPerformed(ActionEvent event) {
+        System.out.println("At the tone, the time is " + new Date());
+        if (beep) {
+            Toolkit.getDefaultToolkit().beep();
+        }
+    }
+}
+```
+
+注意，TimePrinter 类没有实例域或者名为 beep 的变量，取而代之的是 beep 引用了创建 TimePrinter 的 TalkingClock 对象的域。内部类既可以访问自身的数据域，也可以访问创建它的外围类对象的数据域。
+
+为了能够运行这个程序，内部类的对象总有一个隐式引用，它指向了创建它的外部类对象。
+
+这个引用在内部类的定义中是不可见的，然鹅，在内部类中方法是等价于下列形式：
+
+```java
+public void actionPerformed(ActionEvent event) {
+    if (外部数据域.beep) xxx;
+}
+```
+
+外围类的引用在构造器中设置，编译器修改了所有内部类的构造器，添加了一个外围类引用的参数。 TimePrinter 没有定义构造器，编译器为这个类生成了一个默认的构造器，代码如下面所示：
+
+```java
+public TimePrinter(TalkingClock clock) {
+    outer = clock;
+}
+```
+
+其中 outer 只是用来说明内部类的这种机制。
+
+当在 start 方法中创建了 TimePrinter 对象后，编译器就会将 this 引用传递给当前的语音构造器：
+
+```java
+ActionListener listener = new TimePrinter(this);
+```
+
+下面为该测试内部类的完整程序（注：内部类可以是私有类）
+
+```java
+public class InnerClassTest {
+    public static void main(String[] args) {
+        TalkingClock clock = new TalkingClock(1000, true);
+        clock.start();
+
+        JOptionPane.showMessageDialog(null, "Quit program?");
+        System.exit(0);
+    }
+}
+
+/**
+ * A clock that prints the time in regular intervals.
+ */
+class TalkingClock {
+    private int interval;
+    private boolean beep;
+
+    /**
+     * Constructs a talking clock
+     * @param interval the interval between messages (in milliseconds)
+     * @param beep true if the clock should beep
+     */
+    public TalkingClock(int interval, boolean beep) {
+        this.interval = interval;
+        this.beep = beep;
+    }
+
+    public void start() {
+        ActionListener listener = new TimePrinter();
+        Timer t = new Timer(interval, listener);
+        t.start();
+    }
+
+    public class TimePrinter implements ActionListener {
+        public void actionPerformed(ActionEvent event) {
+            System.out.println("At the tone, the time is " + new Date());
+            if (beep) {
+                Toolkit.getDefaultToolkit().beep();
+            }
+        }
+    }
+}
+```
+
+#### 6.4.2 内部类的特殊语法规则
+
+在上一节中，我们已经讲述了内部类有一个外围类的引用 outer。事实上，使用外围类引用的正规语法还要复杂一些。表达式 OuterClass.this 表示外围类引用。例如，可以像下面这样编写 TimePrinter 内部类的 actionPerformed 方法：
+
+```java
+public void actionPerformed(ActionEvent event) {
+    if (TalkingClock.this.beep) {
+        xxx
+    }
+}
+```
+
+注：内部类中声明的所有静态域都必须是 final。因为我们希望一个静态域只有一个实例，不过对于每个外部对象，会分别有一个单独的内部类实例。内部类也不能有 static 方法。
+
+#### 6.4.3 内部类是否有用、必要、安全
+
+看不懂，略过...
+
+#### 6.4.4 局部内部类
+
+在上面的代码中，我们发现 TimerPrinter 这个类的名字只在 start 方法中创建这个类型的对象时使用了一次。
+
+当遇到这类情况，可以在一个方法中定义局部类。
+
+```java
+public void start() {
+    class TimePrinter implements ActionListener {
+        public void actionPerformed(ActionEvent event) {
+            xxx
+        }
+    }
+    
+    ActionListener listener = new TimePrinter();
+    Timer t = new Timer(interval, listener);
+    t.start();
+}
+```
+
+局部类不能用 public 或 private 访问说明符进行声明，它的作用域被限定在这个局部类的块中。
+
+局部类有一个优势，即对外部世界可以完全隐藏起来。即使 TalkingClock 类中的其他代码不能访问它。除 start() 方法之外，没有任何方法知道 TimePrinter 类的存在。
+
+#### 6.4.5 由外部方法访问变量
+
+与其他内部类想比较，局部类还有一个优点。它不仅能够访问它们的外部类，还可以访问局部变量，不过这些局部变量必须为 final。
+
+下面，我们将 TalkingClock 构造器的参数 interval 和 beep 移至 start 方法中。
+
+```java
+public void start(int interval, boolean beep) {
+    class TimePrinter implements ActionListener {
+        public void actionPerformed(ActionEvent event) {
+            System.out.println("xxx");
+            if (beep) {
+                Toolkit.getDefaultTookkit().beep();
+            }
+        }
+    }
+    
+    ActionListener listener = new TimePrinter();
+    Timer t = new Timer(interval, listener);
+    t.start();
+}
+```
+
+现在 TalkingClock 类不需要存储 beep 变量，它现在只是引用 start 方法的 beep 参数变量。
+
+问题：这里书上写程序访问不了 beep，但是实际运行程序可以访问 beep。
+
+#### 6.4.6 匿名内部类
+
+将局部内部类的使用再深入一步。假如只创建这个类的一个对象，就不必命名了。这种类称为匿名内部类（anonymous inner class）。
+
+```java
+public void start(int interval, boolean beep) {
+    // 匿名内部类
+     ActionListener listener = new ActionListener() {
+        public void actionPerformed(ActionEvent event) {
+            System.out.println("At the tone, the time is " + new Date());
+            if (beep) {
+                Toolkit.getDefaultToolkit().beep();
+            }
+        }
+    }
+
+    Timer t = new Timer(interval, listener);
+    t.start();
+}
+```
+
+这种语法确实有些难以理解。它的含义是：创建一个实现 ActionListener 接口的类的新对象，需要实现的方法 actionPerformed 定义在括号内。
+
+通常的语法格式为：
+
+```java
+new SuperType(construction parameters) {
+	inner class methods and data
+}
+```
+
+由于构造器的名字必须与类名相同，而匿名类没有类名，所有，匿名类不能有构造器。取而代之的是，将构造器参数传递给超类构造器。尤其是在内部类实现接口的时候，不能有任何构造参数，还需要像下面这样提供一组括号:
+
+```java
+new InterfaceType() {
+    methods and data
+}
+```
+
+我们来对比一下，一个类构造的新对象与构造一个扩展了那个类的匿名内部类的对象之间有什么区别。
+
+```java
+// a Person object
+Person queen = new Person("Mary");
+
+// an object of an inner class extending Person
+Person count = new Person("Dracula") {...}
+```
+
+如果构造参数的闭小括号后面跟了一个大括号，正在定义的就是匿名内部类。
+
+多年来，Java 程序员习惯的做法是用匿名内部类实现事件监听器和其他回调。如今最好还是使用 lambda 表达式。这一节的 start 方法用 lambda 表达式来写就简介的多：
+
+```java
+public void start(int interval, boolean beep) {
+    Timer t = new Timer(inter, event -> {
+        System.out.println("xxx");
+        if (beep) Toolkit.getDefaultToolkit().beep();
+    });
+    t.start();
+}
+```
+
+**技巧**：下面这个技巧称为 “双括号初始化”，这里利用了内部类的语法。假设你想构造一个数组列表，并将它传递到一个方法：
+
+```java
+ArrayList<String> friends = new ArrayList<>();
+friends.add("Harry");
+friends.add("Tony");
+invite(friends);
+```
+
+或者，你可以使用匿名列表：
+
+```java
+invite(new ArrayList<String>() {{ add("Harry"); add("Tony"); }});
+```
+
+注意这里的双括号，外层括号建立了 ArrayList 的一个匿名子类，内存则是对象构造块。
+
+#### 6.4.7 静态内部类
+
+有时候，使用内部类只是为了吧一个类隐藏在另外一个类的内部，并不需要内部类引用外围类的对象。为此，可以讲内部类声明为 static，以便取消产生的引用。
+
+下面为一个使用静态内部类的经典例子。考虑一下计算数组中最大值和最小值的问题。当然，可以编写两个方法，一个计算最大、一个计算最小。在调用这两个方法的时候，数组被遍历了两次。如果只遍历数组一次，就能够计算最小值和最大值，就可以大大提高效率。
+
+```java
+double min = Double.POSITIVE_INFINITY;
+double max = Double.NEGATIVE_INFINITY;
+for (double v : values) {
+    if (min > v) {
+        min = v;
+    }
+    if (max < v) {
+        max = v;
+    }
+}
+```
+
+这个方法必须返回两个数值，因此需要定义一个包含两个值的类 Pair
+
+```java
+class Pair {
+    private double first;
+    private double second;
+    
+    public Pair(double f, double s) {
+        first = f;
+        second = s;
+    }
+    // getter...
+}
+```
+
+minmax方法返回一个 Pair 类型的对象
+
+```java
+class ArrayAlg {
+    public static Pair minmax(double[] values) {
+        ...
+        return new Pair(min, max);
+    }
+}
+```
+
+这个方法的调用者可以使用 getter 方法获取答案。
+
+完整代码如下：
+
+```java
+public class StaticInnerClassTest {
+    public static void main(String[] args) {
+        double[] d = new double[20];
+        for (int i = 0; i < d.length; i++) {
+            d[i] = 100 * Math.random();
+        }
+        ArrayAlg.Pair p = ArrayAlg.minmax(d);
+        System.out.println("min = " + p.getFirst());
+        System.out.println("max = " + p.getSecond());
+    }
+}
+
+class ArrayAlg {
+    public static class Pair {
+        private double first;
+        private double second;
+
+        public Pair(double first, double second) {
+            this.first = first;
+            this.second = second;
+        }
+
+        public double getFirst() {
+            return first;
+        }
+
+        public double getSecond() {
+            return second;
+        }
+    }
+
+    public static Pair minmax(double[] values) {
+        double min = Double.POSITIVE_INFINITY;
+        double max = Double.NEGATIVE_INFINITY;
+        for (double v : values) {
+            if (min > v) {
+                min = v;
+            }
+            if (max < v) {
+                max = v;
+            }
+        }
+        return new Pair(min, max);
+    }
+}
+```
+
+### 6.5 代理
+
