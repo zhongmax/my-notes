@@ -1622,3 +1622,95 @@ class ArrayAlg {
 
 ### 6.5 代理
 
+什么是代理？代理是在运行时创建一个实现了一组给定接口的新类。这种功能只有编译时无法确定需要实现那个接口才有必要使用。
+
+#### 6.5.1 何时使用代理
+
+假设有一个表示接口的 Class 对象（有可能只包含一个接口），它的确切类型在编译时无法知道，要想构造一个实现这些接口的类，就需要使用 newInstance 方法或反射找出这个类的构造器。但是，不能实例化一个接口，需要在程序处于运行状态是定义一个新类。
+
+为了解决这个问题，有些程序将会生成代码，将这些代码放置在一个文件中，调用编译器，然后加载结果类文件。然鹅，这样做的速度会比较慢，并且需要将编译器与程序放在一起。而代理机制则是一种更好的解决方案。代理类在可以运行时创建全新的类。这样的代理类能够实现指定的接口。尤其是，它具有下列方法：
+
+- 指定接口所需要的全部方法。
+- Object 类中的全部方法，例如，toString、equals 等。
+
+然鹅，不能在运行时定义这些方法的新代码。而是要提供一个调用处理器（invocation handler）。调用处理器是实现了 InvocationHandler 接口的类对象。在这个接口中只有一个方法：
+
+```java
+Object invoke(Object proxy, Method method, Object[] args)
+```
+
+无论何时调用代理对象的方法，调用处理器的 invoke 方法都会被调用，并向其传递 Method 对象和原始的调用参数。
+
+#### 6.5.2 创建代理对象
+
+要想创建一个代理对象，需要使用 Proxy 类的 newProxyInstance 方法。这个方法有三个参数：
+
+- 一个类加载器（class loader）。作为 Java 安全模型的一部分，可以使用 null 表示默认的类加载器。
+- 一个 Class 对象数组，每个元素都是需要实现的接口。
+- 一个调用处理器。
+
+下面程序为使用代理对象对二分查找进行跟踪。
+
+```java
+public class ProxyTest {
+    public static void main(String[] args) {
+        Object[] elements = new Object[1000];
+        for (int i = 0; i < elements.length; i++) {
+            Integer value = i + 1;
+            InvocationHandler handler = new TraceHandler(value);
+            Object proxy = Proxy.newProxyInstance(null, new Class[] { Comparable.class}, handler);
+            elements[i] = proxy;
+        }
+
+        Integer key = new Random().nextInt(elements.length) + 1;
+
+        int result = Arrays.binarySearch(elements, key);
+
+        if (result >= 0) {
+            System.out.println(elements[result]);
+        }
+    }
+}
+
+class TraceHandler implements InvocationHandler {
+
+    private Object target;
+
+    public TraceHandler(Object target) {
+        this.target = target;
+    }
+
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        System.out.print(target);
+        System.out.print("." + method.getName() + "(");
+        if (args != null) {
+            for (int i = 0; i < args.length; i++) {
+                System.out.print(args[i]);
+                if (i < args.length - 1) {
+                    System.out.print(", ");
+                }
+            }
+        }
+        System.out.println(")");
+        return method.invoke(target, args);
+    }
+}
+```
+
+#### 6.5.3 代理类的特性
+
+现在我们已经看到代理类的应用，接下来了解他们的特性。需要记住，代理类是在程序运行过程总创建的。然而，一旦被创建，就变成了常规类，与虚拟机中的任何其他类没有什么区别。
+
+所有的代理类都扩展与 Proxy 类。一个代理类只有一个实例域---调用处理器，它定义在 Proxy 的超类中。为了履行代理对象的职责，所需要的任何附加数据都必须存储在调用处理器中。
+
+## 第七章 异常、断言和日志
+
+在理想状态下，用户输入数据的格式永远是正确的，选择打开的文件也一定存在，并且永远不会出现 bug 。但这永远是不可能的 XD 。
+
+当一个用户在运行程序期间，由于程序的错误或者一些外部环境的影响造成用户数据的丢失，用户就可能不再使用这个程序了，为了避免这类事情的发生，至少要做到以下几点：
+
+- 向用户通告错误；
+- 保存所有的工作结果；
+- 允许用户以妥善的形式退出程序。
+
