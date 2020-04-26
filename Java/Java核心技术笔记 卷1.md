@@ -1742,3 +1742,249 @@ Exception 这个层次结构又分为了两个分支：一个分支派生于 Run
 
 **“如果出现 RuntimeException 异常，那么就一定是你的问题” 是一条相当有道理的规则。**
 
+Java将派生于 Error 类或 RuntimeException 类的所有异常称为非受查（unchecked）异常，其他的异常称为受查（checked）异常。编译器将核查是否为所有的受查异常提供了异常处理器。
+
+#### 7.1.2 声明受查异常
+
+在 Java 中，如果我们遇到需要抛出异常的地方，需要告诉 Java 抛出的异常的类型。
+
+可以在方法上声明可能抛出的异常
+
+```java
+public FileInputStream(String name) throws FileNotFoundException {...}
+```
+
+通过声明受查异常，在真的遇到异常情况时，就会搜索异常处理器，进行处理。
+
+下面 4 种情况需要使用 throws 子句声明异常：
+
+1）调用一个抛出受查异常的方法
+
+2）程序运行过程中发现错误，并且利用 throw 语句抛出一个受查异常
+
+3）程序出现错误，例如 a[-1] = 0
+
+4）Java 虚拟机和运行时库出现的内部错误
+
+前两种情况，必须告之调用这个方法的程序员有可能抛出异常，如果没有处理器捕获这个异常，当前执行的线程会被结束。
+
+对于这些可能被他人使用的 Java 方法，都应该根据**异常规范**（exception specification），在方法的首部声明这个方法可能抛出的异常，当然一个方法可能抛出多个受查异常，在 throws 子句后，使用逗号进行隔开：
+
+```java
+public Image loadImage(String s) throws FileNotFoundException, EOFException {...}
+```
+
+对于 Error 和 RuntimeException 的非受查异常，都不需要声明，因为这些错误要么是我们无法控制的要么就是可以避免的。
+
+总之，一个方法必须声明所有可能抛出的受查异常，而非受查异常要么不可控制要么可以避免。如果方法没有声明所有可能发生的受查异常，编译器会收到一个错误消息。
+
+警告：在子类覆盖超类的一个方法，子类方法中声明的异常不能比超类声明的异常更通用。如果超类没有抛出异常，子类也不能抛出异常。
+
+#### 7.1.3 如何抛出异常
+
+当我们在方法上声明了受查异常，在方法中，我们通过 throw 语句抛出：
+
+```java
+String readData(Scanner in) throws EOFException {
+	...
+    while (...) {
+        if (!in.hasNext()) // EOF encountered
+            if (n < len)
+                throw new EOFException(); // 抛出异常
+    }
+}
+```
+
+通过这种方法，一旦方法抛出了异常，这个方法就不可能返回到调用者，也不用担心返回的默认值或错误代码。
+
+#### 7.1.4 创建异常类
+
+在程序中，我们可能会遇到任何标准的异常类都无法充分描述的问题，此时，我们可以创建自己的异常类，只需要定义一个派生于 Exception 的类，或者派生于 Exception 子类的类。例如：
+
+```java
+// 定义一个派生于 IOException 的类
+class FileFormatException extends IOException {
+    public FileFormatException() {}
+    public FileFormatException(String gripe) {
+        super(gripe);
+    }
+}
+// 可以抛出自己定义的异常
+String readData(BufferedReader in) throws FileFormatException {
+    while(...) {
+        if (ch == -1) {
+            if (n < len)
+                throw new FileFormatException();
+        }
+    }
+}
+```
+
+### 7.2 捕获异常
+
+对于抛出异常，我们只需要将其抛出就不用理睬了，但是有些代码必须捕获异常。
+
+#### 7.2.1 捕获异常
+
+捕获异常，使用 try/catch 语句块，如果在 try 语句块中任何代码抛出了在 catch 子句说明的异常类，都会被捕获并执行相应的错误处理；如果 try 语句块中没有抛出异常，catch 不会触发。
+
+```java
+public void read(String fileName) {
+    try {
+    	InputStream in  = new FileInputStream(fileName);
+        int b;
+        while ((b = in.read()) != -1)
+    } catch (IOException e) {
+        e.printStackTrace();
+    }
+}
+```
+
+上面的代码，读取并处理字节，直到遇到文件结束符结束，在我们调用这个 read 方法，也有可能抛出一个 IOException 异常，被 catch 捕获，并生成一个栈轨迹。
+
+通常，最好的选择是什么都不做，将异常传递给调用者，让调用者去处理这个异常，采用这种方式，就需要声明这个方法可能会抛出异常
+
+```java
+public void read(String fileName) throws IOException {
+    InputStream in = new FileInputStream(fileName);
+    int b;
+    while ((b = in.read()) != -1) {
+        ...
+    }
+} 
+```
+
+如果调用了一个抛出受查异常的方法，要么对处理异常，要么将异常继续传递出去。
+
+**通过，应该捕获那些知道如何处理的异常，而将那些不知道怎么处理的异常继续进行传递。**
+
+#### 7.2.2 捕获多个异常
+
+在 try/catch 语句块中，可以通过多个 catch 语句块捕获多个异常
+
+```java
+try {
+    ...
+} catch (FileNotFoundException e) {
+    ...
+} catch (IOException e) {
+    ...
+}
+```
+
+使用 e.getMessage() 与 e.getClass().getName() 可以获得对象的更多信息。
+
+注：同一个 catch 子句可以捕获多个异常类型。
+
+#### 7.2.3 再次抛出异常和异常链
+
+在 catch 子句中，还可以抛出一个异常。通过这种方式，可以改变异常的类型。通过捕获这个异常再将它再次抛出，能够更加明确具体的异常定位。
+
+```java
+try {
+    ...
+} catch (SQLException e) {
+    throw new ServletException("database error:" + e.getMessage);
+}
+```
+
+或者可以将原始异常设置为新异常的原因：
+
+```java
+try {
+    ...
+} catch (SQLException e) {
+    Throwable se = new ServletException("database error");
+    se.initCause(e);
+    throw se;
+}
+```
+
+通过这种方法，可以让用户抛出子系统中的高级异常，而不会丢失原始异常的细节。
+
+如果在一个方法中发生了一个受查异常，而不允许抛出它，利用这种包装技术就可以捕获这个受查异常，并将它包装成一个运行时异常。
+
+当然，也可以只是记录一下，然后直接抛出，不做任何改变。
+
+```java
+try {
+    ...
+} catch (Exception e) {
+    logger.log(level, message, e);
+    throw e;
+}
+```
+
+#### 7.2.4 finally 子句
+
+对于在 try 语句块中如果出现了异常，就会跳到 catch 语句中，对于 try 语句块中某些资源，需要进行关闭或回收等操作，通过 finally 子句，对于正常运行与发生异常两种情况，finally 语句都会执行。
+
+```java
+InputStream in = new Fi
+```
+
+不管是否有异常被捕获，finally 子句中的代码都会被执行。
+
+对于 try/catch 语句中没有捕获的异常，程序会继续执行 try 语句块中的所有代码，直到发生异常或执行完 try 中所有代码，然后执行 finally 子句中的代码。
+
+Try 语句可以只有 finally 子句，而没有 catch 子句。
+
+建议解耦合 try/catch 和 try/finally 语句块，这样可以提供代码的清晰度。
+
+```java
+InputStream in = ...;
+try {
+    try {
+        ...
+    } finally {
+        in.close();
+    }
+} catch (IOException e) {
+    ...
+}
+```
+
+内层的 try 语句块就是确保关闭输入流，外出的 try 语句块就是确保报告出现的异常。
+
+#### 7.2.5 带资源的 try 语句
+
+带资源的 try 语句的形式：
+
+```java
+try (Resource res = ...) {
+    work with res
+}
+```
+
+在 try 块退出时，会自动调用 res.close()。下面是一个读取一个文件中的所有单词：
+
+```java
+try {Scanner in = new Scanner(new FileInputStream("/usr/share/dict/words")), "UTF-8"} {
+    while (in.hasNext()) {
+        System.out.println(in.next);
+    }
+}
+```
+
+这个块正常退出或存在一个异常时，都会调用 in.close() 方法，就像使用了 finally 块一样，也可以指定多个资源，这个块退出后，都会被关闭。
+
+#### 7.2.6 分析堆栈轨迹元素
+
+跳过...
+
+### 7.3 使用异常机制的技巧
+
+1、异常处理不能代替简单的测试
+
+2、不要过分地细化异常
+
+3、利用异常层次结构
+
+4、不要压制异常
+
+5、在检查错误时，苛刻要比放任更好
+
+6、不要羞于传递异常
+
+### 7.4 使用断言
+
