@@ -1988,3 +1988,217 @@ try {Scanner in = new Scanner(new FileInputStream("/usr/share/dict/words")), "UT
 
 ### 7.4 使用断言
 
+#### 7.4.1 断言的概念
+
+断言是指在测试期间向代码中插入一些检查语句。当代码发布时，这些插入的检测语句会被自动移走。
+
+Java 通过 assert 关键字进行条件检测：
+
+```java
+assert 条件;
+// or
+assert 条件 : 表达式;
+```
+
+上面的两种形式都会对条件进行检测，结果为 false，则会抛出一个 AssertionError 异常。第二种形式，表达式会被传入 AssertionError 的构造器，并转换为一个消息字符串。
+
+例如，我想判断 x 是一个非负数，就可以这么使用断言：
+
+```java
+assert x >= 0;
+// 或者将 x 的实际值传递给 AssertionError 对象
+assert x >= 0 : x;
+```
+
+#### 7.4.2 启用和禁用断言
+
+默认情况下，断言会被禁用。可以在运行程序时用 -enableassertions 或 -ea 选项启用：
+
+```java
+java -enableassertions MyApp
+```
+
+在启用或禁用断言是不必重新编译程序，启用或禁用断言是类加载器的功能。
+
+也可以对某个类或整个包使用断言：
+
+```java
+java -ea:MyClass -ea:com.company.mylib...MyApp
+```
+
+使用 -disableassertions 或 -da 禁用某个类或 包的断言。
+
+#### 7.4.3 使用断言完成参数检测
+
+在 Java 中给了3种处理系统错误的机制：
+
+- 抛出一个异常
+- 日志
+- 使用断言
+
+该什么时候使用断言？请记住下面几点：
+
+- 断言失败是致命的、不可恢复的错误。
+- 断言检测只用于开发和测试阶段（这种做法被戏称为 “在靠近海岸时穿上救生衣，但在海中央就把救生衣抛掉吧”）。
+
+因此，不应该使用断言向程序的其他部分通告发生了可恢复的错误，或者，不应该作为程序向用户通告问题的手短。断言只应该用于测试阶段确定程序内部的错误位置。
+
+### 7.5 记录日志
+
+每个 Java 程序员都很熟悉在有问题的代码中插入一些 System.out.println 方法来查看一些信息，帮助我们发现问题。当然，一旦发现问题的根源，就要把这些语句从代码中删除。实际上，我们可以通过记录日志来实现通用的功能，通过记录日志的API，我们可以把输出信息放在日志中，下面是使用这些API的优点：
+
+- 可以很容易地取消全部日志记录，或者仅仅取消某个级别的日志，而且打开和关闭这个操作也很容易。
+- 可以很简单地禁用日志记录的输出，因此，将这些日志代码留在程序中的开销很小
+- 日志记录可以被定向到不同的处理器，用于在控制台中显示，用于存储在文件中等。
+- 日志记录器和处理器都可以对记录进行过滤。过滤器可以根据过滤丢弃哪些无用的记录项。
+- 日志记录可以采用不同的方式格式化，例如，纯文本或XML。
+- 应用程序可以使用多个日志记录器，他们使用类似包名的这种具有层次结构的名字
+- 默认情况下，日志系统的配置有配置文件控制。可以自己替换这个配置。
+
+#### 7.5.1 基本日志
+
+生成简单的日志记录，可以使用全局日志记录器（global logger）并调用其 info 方法：
+
+```java
+Logger.getGlobal().info("File->Open menu item selected");
+```
+
+#### 7.5.2 高级日志
+
+在一个应用中，不要将所有的日志都记录到一个全局日志记录器中，可以自定义日志记录器。可以调用 getLogger 方法创建或获取记录器：
+
+```java
+private static final Logger myLogger = Logger.getLogger("com.company.myapp");
+```
+
+注：未被任何变量引用的日志记录器可能会被垃圾回收，为了避免这种情况发生，可以使用一个静态变量存储日志记录器的一个引用。
+
+日志记录器分为7个级别：
+
+- SEVERE
+- WARNING
+- INFO
+- CONFIG
+- FINE
+- FINER
+- FINEST
+
+默认情况，只记录前三个级别，也可以设置其他的级别。例如：
+
+```java
+logger.setLevel(level.FINE);
+```
+
+记录日志的常用用途是记录哪些不可预料的异常，可以使用下面两个方法提供日志记录中包含的异常描述内容。
+
+```java
+void throwing(String className, String methodName, Throwable t);
+void log(Level l, String message, Throwable t);
+
+// 方法一
+if (...) {
+    IOException exception = new IOException("...");
+    logger.throwing("com.company.mylib.Reader", "read", exception);
+    throw exception;
+}
+// 方法二
+try {
+    ...
+} catch (IOException e) {
+    Logger.getLogger("com.company.myapp").log(Level.WARNING, "Reading", e);
+}
+```
+
+#### 7.5.3 本地化
+
+本地化的应用程序包含资源包中的本地特定信息，资源包由各个地区的映射集合组成。
+
+一个程序可以包含多个资源包，每个资源包都有一个名字，要想将映射添加到一个资源包中，需要为每个地区创建一个文件。英文消息映射位于 com/company/logmessages_en.properties 文件中；德语位于 com/company/logmessages_de.properties 文件中。可以将这些文件与类文件放在一起，以便 ResourceBundle 类自动地对它们进行定位。
+
+#### 7.5.4 日志记录说明
+
+为一个简单的应用程序，选择一个日志记录器，通过调用下列方法得到日志记录器。
+
+```java
+Logger logger = Logger.getLogger("com.company.myprog");
+// or
+private static final Logger logger = Logger.getLogger("com.company.myprog");
+```
+
+默认的日志配置将级别等于或高于 INFO 级别的所有消息记录到控制台，用户可以覆盖默认的配置文件。
+
+### 7.6 调试技巧
+
+1）可以用下面的方法打印或几率任何变量的值
+
+```java
+System.out.println("x = " + x);
+// or
+Logger.getGlobal().info("x = " + x);
+```
+
+2）可以在类中放置一个单独的 main 方法进行测试
+
+3）可以使用 JUnit 进行单元测试等。
+
+4）日志代理（logging proxy）是一个子类的对象，它可以截获方法调用，并进行日志记录，然后调用超类的方法。
+
+5）利用 Throwable 类提供的 printStackTrace 方法，可以从任何一个异常对象中获得堆栈情况。
+
+6）-Xlint 选项告诉编译器对一些容易出现的代码问题进行检测。
+
+## 第八章 泛型程序设计
+
+### 8.1 为什么要使用泛型程序设计
+
+泛型程序设计（Generic programming）意味编写的代码可以被不同类型的对象所重用。在 Java 增加泛型类之前有一个 ArrayList 类。下面来研究泛型程序设计的机制是如何演变的。
+
+#### 8.1.1 类型参数的好处
+
+在 Java 中增加泛型类之前，泛型程序设计是继承实现的。ArrayList 类只维护一个 Object 引用的数组：
+
+```java
+public class ArrayList {
+    private Object[] elementData;
+    public Object get(int i) {...}
+    public void add(Object o) {...}
+}
+```
+
+这种方法有两个问题提，当获取一个值时必须进行强制类型转换。
+
+```java
+ArrayList files = new ArrayList();
+...
+String filename = (String) files.get(0);
+```
+
+此外，这里没有错误检查，可以向数组列表添加任何类的对象。
+
+泛型提供了一个更好的解决方法：类型参数（type parameters）。ArrayList 类有一个类型参数用来指示元素的类型：
+
+```java
+ArrayList<String> files = new ArrayList<>();
+```
+
+这使得代码具有更好的可读性。人们一看就知道这个数组列表中包含的 String 对象。
+
+编译器也可以很好地利用这个信息。当调用 get 的时候，不需要进行强制类型转换，编译器就知道返回值为 String，而不是 Object：
+
+```java
+String filename = files.get(0);
+```
+
+编译器还知道 ArrayList<String> 中 add 方法有一个类型为 String 的参数，编译器可以进行检查，避免插入错误类型的对象。例如：
+
+```java
+files.add(new File("...")); // can only add String objects to an ArrayList<String>
+```
+
+是无法通过编译的。使用类型参数使程序具有更好的可读性和安全性。
+
+#### 8.1.2 谁想成为泛型程序员
+
+使用像 ArrayList 的泛型类很容易。大多数 Java 程序员都使用 ArrayList<String> 这样的类型，就好像已经构建在语言之中，像 String[] 数组一样。
+
+但是，实现一个泛型类没有那么容易。对于类型参数，使用这段代码的程序员可能想内置所有的类，他们希望在没有过多的限制以及混乱的错误消息的状态下，做所有的事情。因此，一个泛型程序员的任务就是预测出所用的类未来可能有的所有用途。
