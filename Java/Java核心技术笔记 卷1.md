@@ -2202,3 +2202,331 @@ files.add(new File("...")); // can only add String objects to an ArrayList<Strin
 使用像 ArrayList 的泛型类很容易。大多数 Java 程序员都使用 ArrayList<String> 这样的类型，就好像已经构建在语言之中，像 String[] 数组一样。
 
 但是，实现一个泛型类没有那么容易。对于类型参数，使用这段代码的程序员可能想内置所有的类，他们希望在没有过多的限制以及混乱的错误消息的状态下，做所有的事情。因此，一个泛型程序员的任务就是预测出所用的类未来可能有的所有用途。
+
+Java  中有一个具有独创性的新概念，通配符类型（wildcard type），它解决了匹配对象的问题，通过通配符类型，可以让库的构建者编写除尽可能灵活的方法。
+
+### 8.2 定义简单泛型类
+
+一个泛型类（generic class）就是具有一个或多个类型变量的类。下面使用一个简单的 Pair 类来进行说明
+
+```java
+public class Pair<T> {
+    private T first;
+    private T second;
+    
+    public Pair() {
+        first = null;
+        second = null;
+    }
+    
+    public Pair(T first, T second) {
+        this.first = first;
+        this.second = second;
+    }
+    
+    public T getFirst() { return first; }
+    public T getSecond() { return second; }
+    
+    public void setFirst(T newValue) { first = newValue; }
+    public void setSecond(T newValue) { second = newValue; }
+}
+```
+
+上面的 Pair 类引入了一个类型变量 T，用尖括号括起来，并放在类名后面。泛型类可以有多个类型变量。例如，可以定义 Pair 类，其中第一个域和第二个域使用不同的类型：
+
+```java
+public class Pair<T, U> {...}
+```
+
+类定义中的类型变量指定方法的返回类型以及域和局部变量的类型。例如：
+
+```java
+private T first;
+```
+
+注：类型变量使用大写形式，且比较短。在 Java 中使用变量 E 表示集合的元素类型，K 和 V 分别表示表的关键字与值的类型。T、U、S 都可以表示任意类型。
+
+用具体的类型替换类型变量就可以实例化泛型类型，例如：
+
+```java
+Pair<String>
+Pair<String>();
+// 方法
+String getFirst();
+void setFirst(String);
+```
+
+### 8.3 泛型方法
+
+除了定义泛型类，还可以使用类型参数定义泛型方法。
+
+```java
+class ArrayAlg {
+    public static <T> T getMiddle(T a) {
+        return a[a.length / 2];
+    }
+}
+```
+
+泛型方法可以定义在普通类，也可以定义在泛型类中。
+
+当调用一个泛型方法时，在方法名前的尖括号中放入具体的类型：
+
+```java
+String middle = ArrayAlg.<String>getMiddle("John", "Q", "Public");
+```
+
+在这种情况下，方法调用中可以省略<String> 参数类型，编译器可以推断出所调用的方法，它用 names 类型（即 String[]）与泛型类型 T[] 进行匹配并推断出 T 一定是 String。也就是说，可以调用：
+
+```java
+String middle = ArrayAlg.getMiddle("John", "Q", "public");
+```
+
+### 8.4 类型变量的限定
+
+有时，类或方法需要对类型变量加以约束。下面是一个经典的例子，我们要计算数组中的最小元素：
+
+```java
+class ArrayAlg {
+    public static <T> T min(T[] a) {
+        if (a == null || a.length == 0) {
+            T smallest = a[0];
+            for(int i = 1; i < a.length; i++) {
+                if (smallest.compareTo(a[i]) > 0) {
+                    smallest = a[i];
+                }
+            }
+            return smallest;
+        }
+    }
+}
+```
+
+上面的代码中，变量 smallest 类型为 T，这意味着它可以是任何一个类的对象。怎么确保 T 所属的类有 compareTo 方法呢？
+
+解决这个问题的方案就是将 T 限制为实现了 Comparable 接口（只含一个方法 compareTo 的标准接口）的类。可以通过对类型变量 T 设置限定 (bound) 实现这一点：
+
+```java
+public static <T extends Comparable> T min(T[] a) ...
+```
+
+实际上 Comparable 接口本身就是一个泛型类型。
+
+现在，泛型的 min 方法只能实现了 Comparable 接口的类（如 String、LocalDate 等）的数组调用。
+
+一个类型变量或通配符可以有多个限定，例如：
+
+```java
+T extends Comparable & Serializable
+```
+
+限定符用 & 分隔，而逗号用来分隔类型变量。
+
+下面是一个泛型方法 minmax，这个方法计算泛型数组的最小值和最大值，并返回 Pair<T> ，并且限制了为 Comparable 接口的类。
+
+```java
+public class Pair2Test2 {
+    public static void main(String[] args) {
+        LocalDate[] birthdays = {
+                LocalDate.of(1998, 3, 31),
+                LocalDate.of(1815, 12, 10),
+                LocalDate.of(1903, 12, 3),
+        };
+        Pair<LocalDate> mm = ArrayAlg.minmax(birthdays);
+        System.out.println("min = " + mm.getFirst());
+        System.out.println("max = " + mm.getSecond());
+    }
+}
+
+class ArrayAlg {
+    public static <T extends Comparable> Pair<T> minmax(T[] a) {
+        if (a == null || a.length == 0) {
+            return null;
+        }
+        T min = a[0];
+        T max = a[0];
+        for (int i = 0; i < a.length; i++) {
+            if (min.compareTo(a[i]) > 0) {
+                min = a[i];
+            }
+            if (max.compareTo(a[i]) < 0) {
+                max = a[i];
+            }
+        }
+        return new Pair<>(min, max);
+    }
+}
+```
+
+### 8.5 泛型代码和虚拟机
+
+虚拟机没有泛型类型对象——所有对象都属于普通类。
+
+#### 8.5.1 类型擦除
+
+无论何时定义一个泛型类型，都自动提供了一个相应的原始类型（raw type）。原始类型的名字就是删除类型参数后的泛型类型名。擦除（erased）类型变量，并替换为限定类型（无限定的吧变量用 Object）。
+
+例如，Pair<T>的原始类型如下所示：
+
+```java
+public class Pair {
+    private Object first;
+    private Object second;
+    
+    ...
+}
+```
+
+因为 T 是一个无限定的变量，所有直接用 Object 替换。
+
+#### 8.5.2 翻译泛型表达式
+
+当程序调用泛型方法时，如果擦除返回类型，编译器插入强制类型转换。例如，下面这个语句序列：
+
+```java
+Pair<Employee> buddies = ...;
+Employee buddy = buddies.getFirst();
+```
+
+擦除 getFirst 的返回类型后将返回 Object 类型。编译器自动插入 Employee 的强制类型转换。也就是说，编译器把这个方法调用翻译为两条虚拟机指令：
+
+- 对原始方法 Pair.getFirst 的调用
+- 对返回的 Object 类型强制转换为 Employee 类型。
+
+#### 8.5.3 翻译泛型方法
+
+类型擦除也会出现在泛型方法中。程序员通常认为下述的泛型方法
+
+```java
+public static <T extends Comparable> T min(T[] a)
+```
+
+是一个完整的方法族，而擦除类型之后，只剩下一个方法：
+
+```java
+public static Comparable min(Comparable[] a)
+```
+
+注意，类型参数 T 已经被擦除了，只留下了限定类型 Comparable。
+
+方法的擦除带来了两个复杂问题。看一看下面这个示例：
+
+```java
+class DateInterval extends Pair<LocalDate> {
+    public void setSecond(LocalDate second) {
+        if (second.compareTo(getFirst()) >= 0) {
+            super.setSecond(second);
+            ...
+        }
+    }
+}
+```
+
+一个日期区间是一对 LocalDate 对象，并且需要覆盖这个方法来确保第二个值永远不小于第一个值。这个类擦除后变成
+
+```java
+class DateInterval extends Pair {
+    public void setSecond(LocalDate second) {
+        ...
+    }
+}
+```
+
+这里存在另一个从 Pair 继承的 setSecond 方法，这显然是一个不同的方法，因为它有一个不同类型的参数——Object，而不是 LocalDate。
+
+总之，需要记住有关 Java 泛型转换的事实：
+
+- 虚拟机中没有泛型，只有普通的类和方法。
+- 所有的类型参数都用它们的限定类型替换
+- 桥方法被合成来保持多态
+- 为保持类型安全性，必要时插入强制类型转换。
+
+### 8.6 约束与局限性
+
+#### 8.6.1 不能用基本类型实例化类型参数
+
+不能用类型参数代替基本类型。因此，没有 Pair<double>，只有 Pair<Double>。当然，其原因是类型擦除。
+
+擦除后，Pair 类含有 Object 类型的域，而 Object 不能存储 double 值。
+
+这是因为 Java 中基本类型的状态独立。
+
+#### 8.6.2 运行时类型查询只适用于原始类型
+
+虚拟机中的对象总有一个特定的非泛型类型。因此，所有的类型查询只产生原始类型。例如：
+
+```java
+if (a instanceof Pair<String>) // Error
+if (a instanceof Pair<T>) // Error
+```
+
+当试图查询一个对象是否属于某个泛型类型时，倘若使用 instanceof 会得到一个编译器错误，如果使用强制类型转换会得到一个警告。
+
+同样，使用 getClass 方法总是返回原始类型。例如：
+
+```java
+Pair<String stringPair = ...;
+Pair<Employee> employeePair = ...;
+if (stringPair.getClass() == employeePair.getClass()) // equal
+```
+
+比较的结果为 true，这是因为两次调用 getClass 都将返回 Pair.class。
+
+#### 8.6.3 不能创建参数化类型的数组
+
+不能实例化参数化类型的数组，例如：
+
+```java
+Pair<String>[] table = new Pair<String>[10]; //Error
+```
+
+这是因为在类型擦除后，table 的类型是 Pair[]，可以把它转换为 Object[]。
+
+需要说明的是，只是不允许创建这些数组，而声明类型为 Pair<String>[] 的变量仍是合法的，不过不能用 new Pair<String>[10] 初始化这个变量。不过不推荐这么使用，这是不安全的。
+
+如果需要收集参数化类型对象，推荐使用 ArrayList:ArrayList<Pair<String>>。
+
+#### 8.6.4 不能实例化类型变量
+
+不能使用像 new T(...)，new T[...] 或 T.class 这样的表达式中的类型变量。例如，下面的 Pair<T> 构造器就是非法的：
+
+```java
+public Pair() { // Error
+    first = new T();
+    second = new T();
+}
+```
+
+类型擦除会将 T 改变为 Object。
+
+在 Java SE 8 之后最好的解决办法是让调用者提供一个构造器表达式。例如：
+
+```java
+Pair<String> p = Pair.makePair(String::new);
+```
+
+makePair 方法接收一个 Supplier<T>，这是一个函数式接口，表示一个无参数而且返回值为 T 的函数：
+
+```java
+public static <T> Pair<T> makePair(Supplier<T> constr) {
+    return new Pair<>(constr.get(), constr.get());
+}
+```
+
+#### 8.6.5 不能构造泛型数组
+
+就像不能实例化一个泛型实例一样，也并不能实例化数组。因为数组会填充 null 值，构造时看上去是安全的。不过，数组本身也有类型，用来监控存储在虚拟机中的数组。这个类型会被擦除。例如：
+
+```java
+public static <T extends Comparable> T[] minmax(T[] a) { // Error
+    T[] mm = new T[2];
+    ...
+}
+```
+
+类型擦除会让这个方法永远构造 Comparable[2]数组。
+
+如果一个数组仅仅作为一个类的私有实例域，就可以将这个数组声明为 Object[]，并且在获取元素时进行类型转换。
+
+#### 8.6.6 泛型类的静态上下文中类型变量无效
+
