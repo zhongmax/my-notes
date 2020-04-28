@@ -2655,3 +2655,170 @@ void setFirst(? super Manager)
 
 ## 第九章 集合
 
+### 9.1 Java集合框架
+
+#### 9.1.1 将集合的接口与实现分离
+
+与现代的数据结构类库的常见情况一样，Java 集合类库也将接口与实现分离。
+
+下面已——队列（queue）是如何分离的。
+
+队列接口指出可以在队列的尾部添加元素，在队列的头部删除元素，并且可以查找队列中元素的个数。当需要收集对象，并按照“先进先出”的规则检索对象时就应该使用队列
+
+![](http://images.csmaxwell.xyz/20200428211250.png)
+
+队列接口的最简形式类似下面这样：
+
+```java
+public interface Queue<E> {
+    void add(E element);
+    E remove();
+    int size();
+}
+```
+
+这个接口并没有说明队列是如何实现的。队列通常有两种实现方式：一种是使用循环数组；另一种是使用链表
+
+![](http://images.csmaxwell.xyz/20200428211456.png)
+
+每一个实现都可以通过一个实现了 Queue 接口的类来表示
+
+```java
+public class CircularArrayQueue<E> implements Queue<E> {
+    private int head;
+    private int tail;
+    
+    CircularArrayQueue(int capacity) {...}
+    public void add(E element) {...}
+    public E remove() {...}
+    public int size() {...}
+    private E[] elements;
+}
+
+public class LinkedListQueue<E> implements Queue<E> {
+    private Link head;
+    private Link tail;
+    
+    LinkedListQueue() {...}
+    public void add(E element);
+    public E remove() {...}
+    public int size() {...}
+}
+```
+
+在程序中使用队列时，可以使用接口类型来存放集合的引用，需要更改另外一种实现时，只需要更改构造器的可以了。
+
+```java
+Queue<Customer> expressLane = new CircularArrayQueue<>(100);
+// Queue<Customer> expressLane = new LinkedListQueue<>();
+expressLane.add(new Customer("Harry"));
+```
+
+#### 9.1.2 Collection 接口
+
+在 Java 类库中，集合类的基本接口是 Collection 接口。这个接口有两个基本方法：
+
+```java
+public interface Collection<E> {
+    boolean add(E element);
+    Iterator<E> iterator();
+    ...
+}
+```
+
+`add` 方法用于向集合中添加元素。如果添加元素确实改变了集合就返回 true，如果集合没有发生变化就返回 false。
+
+`iterator` 方法用于返回一个实现了 Iterator 接口的对象。可以使用这个迭代对象依次访问集合中的元素。
+
+#### 9.1.3 迭代器
+
+Iterator 接口包含 4 个方法：
+
+```java
+public interface Interator<E> {
+    E next();
+    boolean hasNext();
+    void remove();
+    default void forEachRemaining(Consumer<? super E> action);
+}
+```
+
+通过反复调用 next 方法，可以逐个访问集合中的每个元素，如果到达了集合的末尾，next 方法会抛出一个 `NoSuchElementException` 的异常。因此在调用 next 之前调用 hasNext 方法进行检测，如果还有可访问元素，则返回 true。
+
+如果想要查看集合中所有元素，可以使用循环反复调用 next 方法，或者使用 foreach
+
+```java
+// 循环
+Collection<String> c = ...;
+Iterator<String> iter = c.iterator();
+while (iter.hasNext()) {
+    String element = iter.next();
+    ...
+}
+// foreach
+for (String element : c) {
+    ...
+}
+```
+
+`for each` 循环可以与任何实现了 Iterable 接口的对象一起工作，而 Collection 接口扩展了 Iterable 接口，所有标准类库中的任何集合都可以是 `for each` 循环。
+
+在 Java SE 8 中，还可以调用 forEachRemaining 方法，它提供了一个 lambda 表达式。将对迭代器的每个元素调用这个 lambda 表达式，直到没有元素为止。
+
+```java
+iterator.forEachRemaining(element -> do something with element);
+```
+
+元素访问的顺序取决于集合类型，例如，ArrayList，迭代器从索引0开始，每次索引值加1；如果是 HashSet，则每个元素都将按随机次序出现，直到遍历所有元素。
+
+Java 集合类库中的迭代器与其他类库的迭代器有很重要的区别。
+
+| 传统类库迭代器                                   | Java类库迭代器                                               |
+| ------------------------------------------------ | ------------------------------------------------------------ |
+| 迭代器根据数组索引建模，根据索引可以找到指定元素 | 查找与位置变更是相连的，查找只能使用 next 方法               |
+| 迭代器位置就在索引值得数组元素上 a[i]            | 迭代器位于两个元素之间，next 越过下一个元素，并返回刚才越过的元素 |
+
+![](http://images.csmaxwell.xyz/20200428222323.png)
+
+Iterator 接口的 remove 方法会删除上次调用 next 方法返回的元素。在 remove 方法之前，如果没有调用过 next 将会抛出一个 `IllegalStateException` 异常。
+
+#### 9.1.4 泛型实用方法
+
+由于 Collection 与 Iterator 都是泛型接口，可以编写操作任何集合类型的实用方法。
+
+在 Collection 接口声明很多很有用的方法：
+
+| 方法                                          | 说明                                                         |
+| --------------------------------------------- | ------------------------------------------------------------ |
+| Iterator<E> iterator()                        | 返回一个用于访问集合中每个元素的迭代器                       |
+| int size()                                    | 返回当前存储在集合中的元素个数                               |
+| boolean isEmpty()                             | 如果集合中没有元素，返回 true                                |
+| boolean contains(Object obj)                  | 如果集合中包含了一个与obj相等的对象，返回true                |
+| boolean containsAll(Collection<?> other)      | 如果这个集合包含 other 集合中的所有元素，返回true            |
+| boolean add(Object element)                   | 将一个元素添加到集合中，如果这个调用改变了集合，返回true     |
+| boolean addAll(Collection<? extends E> other) | 将other集合中的所有元素添加到这个集合，如果这个调用改变了集合，返回true |
+| boolean remove(Object obj)                    | 从这个集合中删除等于 obj 的对象，如果有匹配的对象将被删除，返回 true |
+| Object[] toArray()                            | 返回这个集合的对象数组                                       |
+
+#### 9.1.5 集合框架中的接口
+
+Java 集合框架为不同类型的集合定义了大量的接口。
+
+![](http://images.csmaxwell.xyz/20200428230713.png)
+
+集合有两个基本接口：`Collection` 和 `Map`。
+
+集合插入元素使用 `boolean add(E element)`
+
+映射因为包含键/值对，所有要用 put 方法插入 `V put(K key, V value)`
+
+读取元素，可以使用迭代器访问，读取值则使用 get 方法 `V get(K key)`
+
+| 接口  |                                                 |
+| ----- | ----------------------------------------------- |
+| List  | 有序集合，迭代器访问，索引访问                  |
+| Set   | 不能增加重复的元素                              |
+| Queue | 先进先出，只能在队尾插入                        |
+| Map   | 每个对象指定一个key，通过key可以快速定位到value |
+
+### 9.2 具体的集合
