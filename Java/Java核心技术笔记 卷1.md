@@ -2530,3 +2530,128 @@ public static <T extends Comparable> T[] minmax(T[] a) { // Error
 
 #### 8.6.6 泛型类的静态上下文中类型变量无效
 
+不能在静态域或方法中引用类型变量。例如，下面高招将无法施展：
+
+```java
+public class Singleton<T> {
+    private static T singleInstance; // Error
+    
+    public static T getSingleInstance() { // Error
+        if (singleInstance == null) {
+            return singleInstance;
+        }
+    }
+}
+```
+
+如果这个程序能够运行，就可以声明一个 `Singleton<Random>` 共享随机数生成器，声明一个 `Singleton<JFileChooser>` 共享文件选择器对话框。但是，这个程序无法工作。类型擦除后，只剩下 `Singleton`类，它只包含一个 `singleInstance`域。因此，禁止使用带有类型变量的静态域和方法。
+
+#### 8.6.7 不能抛出或捕获泛型类的实例
+
+既不能抛出也不能捕获泛型类对象。实际上，甚至泛型类扩展 `Throwable` 都是不合法的。例如，以下定义就不能正常编译：
+
+```java
+public class Problem<T> extends Exception {...} // Error 
+```
+
+catch子句也不能使用类型变量
+
+```java
+public static<T extends Throwable> void doWork(Class<T> t) {
+    try {
+        ...
+    } catch (T e) { // Error
+        Logger.global.info(...)
+    }
+}
+```
+
+### 8.7 泛型类型的继承规则
+
+在使用泛型类时，需要了解一些有关继承和子类型的准则。考虑一个类和一个子类，如 Employee 和 Manager。
+
+`Pair<Manager>` 是 `Pair<Employee>` 的一个子类吗？答案是“不是”。例如下面的代码就不能编译成功：
+
+```java
+Manager[] topHonchos = ...;
+Pair<Employee> result = ArrayAlg.minmax(topHonchos); // Error
+```
+
+`minmax` 方法返回 `Pair<Manager>`，而不是 `Pair<Employee>`，并且这样的赋值也不合法。
+
+无论 S 与 T 有什么联系，如下图一样，通常，`Pair<S>` 与 `Pair<T>` 没有什么联系。
+
+![](http://images.csmaxwell.xyz/20200428203009.png)
+
+注：必须注意泛型与 Java 数组之间的重要区别。可以将一个 Manager[] 数组赋值给一个类型为 Employee[] 的变量：
+
+```java
+Manager[] managerBuddies = { ceo, cfo };
+Employee[] employeeBuddies = managerBuddies; // OK
+```
+
+然而，数组带有特别的保护。如果视图将一个低级别的雇员存储到 employeeBuddies[0]，虚拟机将会抛出 ArrayStoreException 异常。
+
+泛型类可以扩展或实现其他的泛型类。例如，`ArrayList<T>` 类可以实现 `List<T>` 接口。这意味着，一个 `ArrayList<Manager>` 可以转换为一个 `List<Manager>`。但是，一个 `ArrayList<Manager>` 不是一个 `ArrayList<Employee>` 或 `List<Employee>`。
+
+![](http://images.csmaxwell.xyz/20200428203834.png)
+
+### 8.8 通配符
+
+#### 8.8.1 通配符概念
+
+通配符类型中，允许类型参数变化。例如，通配符类型
+
+```java
+Pair<? extends Employee>
+```
+
+表示任何泛型 Pair 类型，它的类型参数是 Employee 的子类，可以为 `Pair<Manager>`，但不能为 `Pair<String>`。
+
+假设要编写一个打印雇员的方法：
+
+```java
+public static void printBuddies(Pair<Employee> p)
+```
+
+上面的方法不能接受 `Pair<Manager>`。如果使用通配符类型就可以接收它们：
+
+```java
+public static void printBuddies(Pair<? extends Employee> p)
+```
+
+但是，这里有一个问题：
+
+```java
+Pair<Manager> managerBuddies = new Pair<>(ceo, cfo);
+Pair<? extends Employee> wildcardBuddies = managerBuddies; // OK
+wildcardBuddies.setFirst(lowlyEmployee); // compile-time error
+```
+
+这里对 `setFirst` 的调用有一个类型错误，因为编译器不清楚是那个 Employee 的子类型，它拒绝传递任何特定的类型，因为不能用来匹配。
+
+可以使用有限定的通配符来解决这个问题。
+
+#### 8.8.2 通配符的超类型限定
+
+通配符限定于类型变量限定十分类似，但是，通配符限定可以指定一个超类型限定（supertype bound）：
+
+```java
+? super Manager
+```
+
+这个通配符限制为 `Manager`的所有超类型。
+
+这么做，可以为方法提供参数，但不能使用返回值。例如，`Pair<? super Manager>` 有方法
+
+```java
+void setFirst(? super Manager)
+? super Manager getFirst()
+```
+
+因此调用这个方法时，只能传递 manager 类型的对象。
+
+![](http://images.csmaxwell.xyz/20200428210029.png)
+
+## 第九章 集合
+
