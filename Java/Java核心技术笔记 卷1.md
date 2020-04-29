@@ -2822,3 +2822,169 @@ Java 集合框架为不同类型的集合定义了大量的接口。
 | Map   | 每个对象指定一个key，通过key可以快速定位到value |
 
 ### 9.2 具体的集合
+
+下面列举了 Java 类库中的集合，除了 Map 结尾的类之外，其他类都实现了 Collection 接口，Map 结尾的类实现了 Map 接口。
+
+| 集合类型        | 描述                                                 |
+| --------------- | ---------------------------------------------------- |
+| ArrayList       | 一种可以动态增长和缩减的索引序列                     |
+| LinkedList      | 一种可以在任何位置进行高效地插入和删除操作的有序序列 |
+| ArrayDeque      | 一种用循环数组实现的双端队列                         |
+| HashSet         | 一种没有重复元素的无序集合                           |
+| TreeSet         | 一种有序集                                           |
+| EnumSet         | 一种包含枚举类型值的集                               |
+| LinkedHashSet   | 一种可以记住元素插入次序的集                         |
+| PriorityQueue   | 一种允许高效删除最小元素的集合                       |
+| HashMap         | 一种存储键 / 值关联的数据结构                        |
+| TreeMap         | 一种键值有序排列的映射表                             |
+| EnumMap         | 一种键值属于枚举类型的映射表                         |
+| LinkedHashMap   | 一种可以基础键 / 值项添加次序的映射表                |
+| WeakHashMap     | 一种其值无用武之地后可以被垃圾回收器回收的映射表     |
+| IdentityHashMap | 一种用 == 而不是用 equals 比较键值的映射表           |
+
+![](http://images.csmaxwell.xyz/20200429152917.png)
+
+![](http://images.csmaxwell.xyz/20200429152948.png)
+
+#### 9.2.1 链表
+
+在我们使用数组或动态的 ArrayList 类的时候，会发现数组与数组列表，在进行删除或插入的操作时，其后的元素的位置都会发生改变，十分不便。
+
+而链表则解决了这个问题，链表将每个对象都存放在独立的结点中，每个结点还存放着下一个结点的引用。在 Java 中，所有链表都是双向链表（doubly linked）——即每个结点还存放着指向前驱结点的引用
+
+![](http://images.csmaxwell.xyz/20200429154524.png)
+
+链表的插入与删除非常的方便，只需要更改插入或删除附近的链接。
+
+![](http://images.csmaxwell.xyz/20200429154659.png)
+
+在 Java 中提供了一个 LinkedList，来实现链表的操作。
+
+```java
+List<String> staff = new LinkedList<>();
+staff.add("Amy");
+staff.add("Bob");
+staff.add("Carl");
+Iterator iter =  staff.iterator();
+String first = iter.next();
+String second = iter.next();
+iter.remove();
+```
+
+上面的代码创建了一个 LinkedList 的链表，并添加了3个元素，接着删除了第2个元素。
+
+链表与泛型集合之间有一个重要的区别。链表是一个有序集合，每个对象的位置十分重要。`LinkedList.add` 方法将对象添加到链表的尾部。但是，常常需要将元素添加到链表的中间。由于迭代器是描述集合中位置的，所有这种依赖于位置的 add 方法将由迭代器负责。只有对自然有序的集合使用迭代器添加元素才有实际意义。例如，集（set）类型，其中的元素完全无序。因此，在 Iterator 接口中就没有 add 方法。相反地，集合类库提供了子接口 ListIterator，其中包含 add 方法：
+
+```java
+interface ListIterator<E> extends Iterator<E> {
+    void add(E element);
+    E previous();
+    boolean hasPrevious();
+}
+```
+
+ListIterator 接口还提供了两个方法，用来反向遍历链表。
+
+LinkedList 类的 listIterator 方法返回一个实现了 ListIterator 接口的迭代器对象。
+
+```java
+ListIterator<String> iter = staff.listIterator();
+```
+
+下面为，越过链表第一个元素，插入一个元素的代码：
+
+```java
+List<String> staff = new LinkedList<>();
+staff.add("Amy");
+staff.add("Bob");
+staff.add("Carl");
+ListIterator<String> iter = staff.listIterator();
+iter.next();
+iter.add("Juliet");
+```
+
+最后需要说明，set 方法用一个新元素取代调用 next 或 previous 方法返回的上一个元素。例如，下面的代码将用一个新值替代链表的第一个元素：
+
+```java
+ListIterator<String> iter = list.listIterator();
+String oldValue = iter.next();
+iter.set(newValue);
+```
+
+使用链表就是为了尽可能减少在列表中间插入或删除元素所付出的代价。
+
+如果需要对集合进行随机访问，就使用数组或 ArrayList。
+
+下面这个程序创建了两个链表，并将它们合并在一起，然后从第二个链表中每间隔一个元素删除一个元素，最后测试 removeAll 方法：
+
+```java
+public class LinkedListTest {
+    public static void main(String[] args) {
+        List<String> a = new LinkedList<>();
+        a.add("Amy");
+        a.add("Carl");
+        a.add("Erica");
+
+        List<String> b = new LinkedList<>();
+        b.add("Bob");
+        b.add("Doug");
+        b.add("Frances");
+        b.add("Gloria");
+
+        ListIterator<String> aIter = a.listIterator();
+        Iterator<String> bIter = b.iterator();
+
+        while (bIter.hasNext()) {
+            if (aIter.hasNext()) {
+                aIter.next();
+            }
+            aIter.add(bIter.next());
+        }
+
+        System.out.println(a);
+
+        bIter = b.iterator();
+        while (bIter.hasNext()) {
+            bIter.next();
+            if (bIter.hasNext()) {
+                bIter.next();
+                bIter.remove();
+            }
+        }
+
+        System.out.println(b);
+
+        a.removeAll(b);
+
+        System.out.println(a);
+    }
+}
+```
+
+#### 9.2.2 数组列表
+
+上一节，介绍了 List 接口和实现了这个接口的 LinkedList 类。List 接口用于描述一个有序集合，并且集合中每个元素的位置十分重要。有两种访问元素的协议：一种使用迭代器，另外一种使用 get 和 set 方法随机地访问每个元素。后者不适用于链表，但对数组却很有用。集合类库提供了一种大家熟悉的 ArrayList 类，这个类也实现了 List 接口。 ArrayList 封装了一个动态再分配的对象数组。
+
+注：对一个经验丰富的 Java 程序员来说，在需要动态数组时，可能会使用 Vector 类。为什么要用 ArrayList 取代 Vector 呢？原因很简单：Vector 类的所有方法都是同步的。可以由两个线程安全地访问一个 Vector 对象。但是，如果由一个线程访问 Vector，代码要在同步操作上耗费大量的时间。而 ArrayList 方法不是同步的，因此，建议在不需要同步时使用 ArrayList，而不要使用 Vector。
+
+#### 9.2.3 散列集
+
+散列表（hassh  table）是一种可以快速查找所需要的对象的数据结构。它为每个对象计算一个称为散列码（hash code）的整数。散列码是由对象的实例域产生的一个整数，不同的数据域的对象会产生不同的散列码，散列码都是由 String 类的 hashCode 方法产生的。
+
+如果自定义类，就需要实现这个类的 hashCode 方法。自己实现的 hashCode 方法与 equals 方法应该兼容，即 a.equals(b) 为 true，则 a 与 b 必须具有相同的散列码。
+
+在 Java 中，散列表用链表数组实现。每个列表被称为桶（bucket）。可以这么理解，我们将桶号理解为数组的索引，桶号决定了我们的键存在散列表中的那个桶。要想查找表中对象的位置，就要先计算它的散列码，然后与桶的总数取余，得到的结果就是保存在这个元素的桶的索引。例如，某个对象的散列码为76268，并且有128个桶，对象应该保存在第108号桶中（76268 / 128 余 108）。如果这个桶中没有其他元素，此时将这个元素直接插入桶中就可以了。如果桶中有键了，则将元素的键放在后面，以此类推，直到桶被占满的情况。这种现象称为散列冲突（hash collision）。这时，需要用新对象与桶中所有对象进行比较，查看这个对象是否已经存在。
+
+注：在 Java SE 8 中，桶满时会从链表变成平衡二叉树。如果选择的散列函数不当，会产生很多冲突。
+
+一般制定初始的桶数，为预计元素的75%~150% 左右，标准库使用的桶数是2的幂，默认值为16。
+
+如果遇到散列表太满，则需要**再散列**（rehashed），创建一个桶数更多的表，将所有元素插入到这个新表中，然后丢弃原来的表。**装填因子**（load factor）决定何时对散列表进行再散列，一般装填因子默认为 0.75，当表中超过 75% 的位置已经填入元素，这个表就会用双倍的桶数自动地进行再散列。
+
+散列表可以用于实现几个重要的数据结构，其中最简单的是 set 类型。set 是没有重复元素的元素集合。set 的 add方法首先在集中查找要添加的对象，如果不存在，就讲这个对象添加进去。
+
+Java 集合类库中提供了一个 HashSet 类，它实现了基于散列表的集。用 add 方法添加元素。contains 方法已经被重新定义，用来快速查看是否某个元素已经出现在集中。它只在某个桶中查找元素，而不必查看集合中的所有元素。
+
+散列集迭代器将依次访问所有的桶。由于散列将元素分散在表的各个位置上，所有访问它们的顺序几乎是随机的。只有不关心集合中元素的顺序时，才应该使用 HashSet。
+
+#### 9.2.4 树集
