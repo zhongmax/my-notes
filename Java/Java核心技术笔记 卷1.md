@@ -3033,3 +3033,208 @@ for (String s : sorter) {
 优先级队列（priority queue）中的元素可以按照任意的顺序插入，却总是按照排序的顺序进行检索。也就是说，无论何时调用 remove 方法，总会获得当前优先级队列中最小的元素。然而，优先级队列并没有对所有的元素进行排序。如果用迭代的方式处理这些元素，并不需要对它们进行排序。优先级队列使用了一个优雅且高效的数据结构，称为堆（heap）。堆是一个可以自我调整的二叉树，对数执行添加 add 和删除 remove 操作，可以让最小的元素移动到根，而不必花费时间对元素进行排序。
 
 与 TreeSet 一样，一个优先级队列既可以保存实现了 Comparable 接口的类对象，也可以保存在构造器中提供的 Comparator 对象。
+
+使用优先级队列的典型示例是任务调度。每一个任务有一个优先级，任务以随机顺序添加到队列中。每当启动一个新的任务时，都将优先级最高的任务从队列中删除（由于习惯上将1设为最高优先级，所有会将最小的元素删除）。
+
+下面的程序是一个正在运行的优先级队列，这里的迭代器不是按照元素的顺序进行访问的。而删除总是删掉剩余元素中优先级最小的那个元素。
+
+```java
+public class PriorityQueueTest {
+    public static void main(String[] args) {
+        PriorityQueue<LocalDate> pq = new PriorityQueue<>();
+        pq.add(LocalDate.of(1906, 12, 9));
+        pq.add(LocalDate.of(1815, 12, 10));
+        pq.add(LocalDate.of(1903, 12, 3));
+
+        System.out.println("Iterating over elements...");
+        for (LocalDate localDate : pq) {
+            System.out.println(localDate);
+        }
+        System.out.println("Removing elements...");
+        while (!pq.isEmpty()) {
+            System.out.println(pq.remove());
+        }
+    }
+}
+```
+
+### 9.3 映射
+
+集是一个集合，它可以快速查找现有的元素。但是，要查看一个元素，需要有查找元素的精确副本。通常，我们知道某些键的信息，并想要查找与之对应的元素。映射（map）数据结构 就是为此设计的。映射用来存放键 / 值对。如果提供了键，就能够查找到值。
+
+#### 9.3.1 基本映射操作
+
+Java 类库为映射提供了两个通用的实现：`HashMap` 和 `TreeMap` 这两个类都实现了 Map 接口。
+
+下面对比了 HashMap 与 TreeMap 两种映射类的区别，以及该如何选择
+
+| 散列映射（HashMap）                    | 树映射（TreeMap）                      |
+| -------------------------------------- | -------------------------------------- |
+| 对键（K）进行散列（hash）              | 用键的整体顺序对元素排序，并组成搜索树 |
+| 散列或比较函数只能作用于键，不能用于值 | 没有限制                               |
+
+**如果不需要按照排列顺序访问键，推荐使用 `HashMap`。**
+
+一个简单的 `HashMap`，
+
+```java
+Map<String, Employee> staff = new HashMap<>();
+Employee harry = new Employee("Harry Hacker");
+staff.put("9996", harry);
+```
+
+使用 put 方法放置一个键/值，使用 get 方法获取值：
+
+```java
+String id = "9996";
+e = staff.get(id);
+```
+
+如果没有找到相应的键的信息，则 get 将返回 null。
+
+使用 remove 方法从映射中删除给定键的元素。
+
+foreach 加上 lambda 表达式可以轻松的读取映射的每一项。
+
+下面代码演示了对映射的基本操作：
+
+```java
+public class MapTest {
+    public static void main(String[] args) {
+        Map<String, Employee> staff = new HashMap<>();
+        staff.put("1", new Employee("Amy Lee"));
+        staff.put("2", new Employee("Harry Hacker"));
+        staff.put("3", new Employee("Maxwell Zhong"));
+
+        System.out.println(staff);
+
+        staff.remove("3");
+
+        staff.put("3", new Employee("Francesa Miller"));
+
+        System.out.println(staff.get("2"));
+
+        // iterate throught all entries
+        staff.forEach((k, v) -> {
+            System.out.println("key = " + k + ", value = " + v);
+        });
+    }
+}
+```
+
+#### 9.3.2 更新映射项
+
+处理映射还有一个难点就是更新映射项。正常情况下，可以得到与一个键关联的原值，完成更新，再放回更新后的值。不过，必须考虑一个特殊情况，即键第一次出现。例如，使用一个映射统计一个单词在文件中出现的次数，看到一个单词，就使用计数器加1：
+
+```java
+counts.put(word, counts.get(word) + 1);
+```
+
+当程序第一次 word 时，get 会返回 null。
+
+有三种方法进行补救
+
+```java
+// 1. getOrDefault 方法
+counts.put(word, counts.getOrDefault(word, 0) + 1);
+// 2. putIfAbasent 方法，只有键原先存在时才会放入一个值
+counts.putIfAbsent(word, 0);
+counts.put(word, counts.get(word) + 1);
+// 3. merge 方法
+counts.merge(word, 1, Integer::sum);
+// 将 word 与 1 关联，否则使用 Integer::sum 函数组合 原值+1
+```
+
+#### 9.3.3 弱散列映射
+
+`WeakHashMap` 类是为了解决一个有趣的问题。如果有一个值，对应的键已经不再使用了，将会出现什么情况？假设对某个键的最后一次引用已经消亡，不再有任何途径引用这个值得对象了。由于程序中没有任何地方有这个键，所有无法将它从映射中删除，垃圾回收期也不能删除它，尽管它已经是无用的对象了。
+
+实际上，垃圾回收器跟踪活动的对象。只要映射对象是活动的，其中的桶也是活动的，它们就不能被回收。因此需要有程序负责从长期存活的映射表中删除那些无用的值。或者 `WeakHashMap` 完成这件事情。当对键的唯一引用来自散列条目时，这一数据结构将与垃圾回收器协同工作一起删除键 / 值对。
+
+下面是这种机制的内部运行情况。`WeakHashMap `使用弱引用（weak references）保存键。`WeakReference` 对象将引用保存到另外一个对象中，在这里，就是散列键。对于这种类型的对象，垃圾回收器用一种特有的方式进行处理。通常，如果垃圾回收器发现某个特定的对象已经没有他人引用了，就将其回收。然而，如果某个对象只能由 `WeakReference` 引用，垃圾回收器仍然回收它，但要将引用这个对象的弱引用放入队列中。`WeakHashMap` 将周期性地检查队列，以便找出新添加的弱引用。一个弱引用进入队列意味着这个键不再被他人使用，并且已经被收集起来，于是，`WeakHashMap` 将删除对应的条目。
+
+#### 9.3.4 链接散列集与映射
+
+`LinkedHashSet` 和 `LinkedHashMap` 类用来记住插入元素项的顺序。这样就可以避免在散列表中项从表面上看是随机排列的。当条目插入到表中时，就会并入到双向链表中。
+
+![](http://images.csmaxwell.xyz/20200430213754.png)
+
+例如，想映射插入的处理：
+
+```java
+Map<String, Employee> staff = new LinkedHashMap<>();
+staff.put("144", new Employee("Amy Lee"));
+staff.put("567", new Employee("Harry Hacker"));
+staff.put("157", new Employee("Gary Cooper"));
+staff.put("456", new Employee("Francesca Cruz"));
+
+// staff.keySet().iterator() 以下面的次序枚举键
+144
+567
+157
+456
+// staff.values().iterator() 以下列顺序枚举这些值
+Amy Lee
+Harry Hacker
+Gary Cooper
+Francescca Cruz
+```
+
+链接散列映射（LinkedHashMap）将用访问顺序，而不是插入顺序，对映射条目进行迭代。每次调用 get 或 put，受影响的条目将从当前位置删除，并放到条目链表的尾部（只有条目在链表中的位置会受到影响，而散列表中的桶不会受影响。一个条目总位于与键散列码对应的桶中）。要构造这样一个的散列映射表：
+
+```java
+LinkedHashMap<K, V>(initialCapacity, loadFactor, true)
+```
+
+访问顺序对于实现高数缓存的“最近最少使用”原则十分重要。例如，可能希望将访问频率高的元素放在内存中，而访问频率低的元素则从数据库中读取。当在表中找不到元素项且表又已经满时，可以将迭代器加入到表中，并将枚举的前几个元素删除掉。这些是近期最少使用的几个元素。
+
+甚至可以让这一过程自动化。即构造一个 LinkedHashMap 的子类，然后覆盖下面这个方法：
+
+```java
+protected boolean removeEldestEntry(Map.Entry<K, V> eldest)
+```
+
+每当方法返回 true 时，就添加一个新条目，从而导致删除 eldest 条目。例如，下面的高速缓存可以存放 100 个元素：
+
+```java
+Map<K, V> cache = new LinkedHashMap<>(128, 0.75F, true) {
+    protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+        return size() > 100;
+    }
+}();
+```
+
+另外，还可以对 eldest 条目进行评估，以此决定是否应该将它删除。例如，检查与这个条目一起存在的时间戳。
+
+#### 9.3.5 枚举集与映射
+
+EnumSet 是一个枚举类型元素集的高效实现。由于枚举类型只有有限个实例，所有 EnumSet 内部用位序列实现。如果对应的值在集中，则相应的位被置为 1。
+
+EnumSet 类没有公共构造器。可以使用静态工厂方法构造这个集：
+
+```java
+enum Weekday {MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY};
+EnumSet<Weekday> always = EnumSet.allOf(Weekday.class);
+EnumSet<Weekday> never = EnumSet.noneOf(Weekday.class);
+EnumSet<Weekday> workday = EnumSet.range(Weekday.MONDAY, Weekday.FRIDAY);
+EnumSet<Weekday> mwf = EnumSet.of(Weekday.MONDAY, Weekday.WEDNESDAY, Weekday.FRIDAY);
+```
+
+可以使用 Set 接口的常用方法来修改 EnumSet。
+
+EnumMap 是一个键类型为枚举类型的映射。它可以直接切高效地用一个值数组实现。在使用时，需要在构造器中指定键类型：
+
+```java
+EnumMap<Weekday, Employee> personInCharge = new EnumMap<>(Weekday.class);
+```
+
+注：在 EnumSet 的 API 文档中，将会看到 `E extends Enum<E>` 这种奇怪的类型参数，这里的 E 表示为一个枚举类型。所有的枚举类型都扩展与泛型 Enum 类。 
+
+#### 9.3.6 标识散列映射
+
+类 `IdentityHashMap` 有特殊的作用。在这个类中，键的散列值不是用 hashCode 函数计算的。而是用 `System.identityHashCode` 方法计算的。这是 `Object.hashCode` 方法根据对象的内存地址来计算散列码所使用的方式。而且，在对两个对象进行比较时，`IdentityHashMap` 类使用 `==` 而不使用 `equals`。
+
+也就是说，不同的键对象，即使内容相同，也被设为是不同的对象。在实现对象遍历算法（如：对象串行化）时，这个类非常有用，可以用来跟踪每个对象的遍历状况。
+
+### 9.4 视图与包装器
+
