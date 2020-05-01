@@ -3367,3 +3367,227 @@ List<String> safeStrings = Collections.checkedList(strings, String.class);
 
 ### 9.5 算法
 
+泛型集合接口有一个很大的优点，即算法只需实现一次。例如，考虑一下计算集合中最大元素这样一个简单的算法。使用传统方式，程序设计人员可能会使用循环实现这个算法。
+
+```java
+if (a.length == 0) throw new NoSuchElementException();
+T largest = a[0];
+for (int i = 1; i < a.length; i++) {
+    if (largest.compareTo(a[i] < 0)) {
+        largest = a[i];
+    }
+}
+```
+
+我们可以考虑使用集合接口，来编写一个在链表、数组列表或数组中找最大元素的方法。
+
+我们使用迭代器遍历每个元素找出最大的元素，并将 max 方法实现为能够接受 Collection 接口的对象。
+
+```java
+public static <T extends Comparable> T max(Collection<T> c) {
+    if (c.isEmpty()) {
+        throw new NoSuchElementException();
+    }
+    Iterator<T> iter = c.iterator();
+    T largest = iter.next();
+    while (iter.hasNext()) {
+        T next = iter.next();
+        if (largest.compareTo(next) < 0) {
+            largest = next;
+        }
+    }
+    return largest;
+}
+```
+
+#### 9.5.1 排序与混排
+
+在 Collections 类中的 sort 方法可以对实现了 List 接口的集合进行排序。
+
+```java
+List<String> staff = new LinkedList<>();
+...
+Collections.sort(staff);
+// 降序
+staff.sort(Comparator.reverseOrder())
+```
+
+这个方法假定列表元素实现了 Comparable 接口。如果想采用其他方式对列表进行排序，可以使用 List 接口的 sort 方法传入一个 Comparator 对象。例如，按工资排序：
+
+```java
+staff.sort(Comparator.comparingDouble(Employee::getSalary));
+// 逆序
+staff.sort(Comparator.comparingDouble(Employee::getSalary).reversed())
+```
+
+Collections 类有一个算法 shuffle，其功能与排序刚好相反，即随机混排列表中的元素。
+
+```java
+ArrayList<Card> cards = ...;
+Collections.shuffle(cards);
+```
+
+如果提供的列表没有实现 RandomAccess 接口，shuffle 方法将元素复制到数组中，然后打乱数组元素的顺序，最后再将打乱顺序后的元素复制回列表。
+
+#### 9.5.2 二分查找
+
+Collection 类的 binarySearch 方法实现了二分查找算法。但是，集合必须是排好序的，否则会返回错误的答案。
+
+要查找某个元素，必须提供集合以及要查找的元素。如果集合没有采用 Comparable 接口的 compareTo 方法进行排序，还需要提供一个比较器对象。
+
+```java
+i = Collections.binarySearch(c, element);
+i = Collections.binarySearch(c, element, comparator);
+```
+
+binarySearch 方法返回的数值大于等于 0，表示匹配对象的索引，也就是说，c.get(i) 等于这个比较顺序下的 element。如果返回负值，则表示没有匹配的元素。
+
+#### 9.5.3 简单算法
+
+在 Collections 类中提供几个简单且很有用的算法，通过这些算法，可以快速知道其用途。
+
+常用的方法：
+
+```
+static <T extends Comparable<? super T>> T min(Collection<T> elements)
+static <T extends Comparable<? super T>> T max(Collection<T> elements)
+static <T> min(Collection<T> elements, Comparator<? super T> c)
+static <T> max(Collection<T> elements, Comparator<? super T> c)
+// 返回集合中最小/大的元素
+
+static <T> void copy(List<? super T> to, List<T> from)
+// 复制原列表的元素到目标列表
+
+static <T> void fill(List<? super T> l, T value)
+// 将列表中所有位置设置为相同的值
+
+static <T> boolean ddAll(Collection<? super T> c, T... values)
+// 将所有值添加到集合中，如果集合改变，返回 true
+
+static <T> boolean replaceAll(List<T> l, T oldValue, T newValue)
+// 用 newValue 取代所有值为 oldValue 的元素
+
+static void swap(List<?> l, int i, int j)
+// 交换给定偏移量的两个元素
+
+static void reverse(List<?> l)
+// 逆置列表中元素的顺序
+
+default boolean removeIf(Predicate<? super E> filter)
+// 删除所有匹配的元素
+
+default void replaceAll(UnaryOperator<E> op)
+// 对这个列表的所有元素应用这个操作
+```
+
+#### 9.5.4 批操作
+
+很多操作会“成批”复制或删除元素。例如：
+
+```java
+// 从 coll1 中删除 coll2 中出现的所有元素
+coll1.removeAll(coll2);
+
+// 从 coll1 中删除所有未在 coll2 中出现的元素
+coll1.retainAll(coll2);
+```
+
+如果，我们想找出两个集的交集，也就是两个元素共有的元素，可以这么操作：
+
+```java
+// 建立一个新集存放结果，a 为另外一个集合
+Set<String> result = new HashSet<>(a);
+// 使用 retainAll 方法
+// 这会保留在 b 中出现的元素
+result.retainAll(b);
+```
+
+#### 9.5.5 集合与数组的转换
+
+数组 -> 集合：
+
+```java
+String[] values = ...;
+HashSet<String> staff = new HashSet<>(Arrays.asList(values));
+```
+
+集合 -> 数组:
+
+```java
+Object[] values = staff.toArray();
+```
+
+这样得到是一个对象数组，不能使用强制类型转换：
+
+``` 
+String[] values = (String[]) staff.toArray(); // Error
+```
+
+toArray 方法返回的数组时一个 Object[] 数组，不能更改它的类型，或者使用 toArray 方法的一个变体形式，提供一个所需类型而且长度为 0 的数组。这样一来，返回的数组就会创建相同的数组类型：
+
+```java
+String[] values = staff.toArray(new String[0]);
+```
+
+还可以构造一个指定大小的数组：
+
+```java
+staff.toArray(new String[staff.size()]);
+```
+
+#### 9.5.6 编写自己的算法
+
+如果编写自己的算法（实际上，是以集合作为参数的任何方法），应该尽可能地使用接口，而不要使用具体的实现。
+
+### 9.6 遗留的集合
+
+#### 9.6.1 Hashtable 类
+
+Hashtable 类与 HashMap 类的作用一样，实际上，它们拥有相同的接口。与 Vector 类的方法一样。 Hashtable 的方法也是同步的。如果对同步性或遗留代码的兼容性没有任何要求，就应该使用 HashMap。如果需要并发访问，则需要使用 ConcurrentHashMap。
+
+#### 9.6.2 枚举
+
+枚举集合使用 Enumeration 接口对元素序列进行遍历。Enumeration 接口有两个方法，即 `hasMoreElements` 和 `nextElement`，这两个方法与 Iterator 接口的 hasNext 方法和 next 方法十分类似。
+
+#### 9.6.3 属性映射
+
+**属性映射**（property map）是一个类型非常特殊的映射结构。它有下面3个特性：
+
+- 键与值都是字符串
+- 表可以保存到一个文件中，也可以从文件中加载
+- 使用一个默认的辅助表
+
+实现属性映射的 Java 平台类称为 Properties。
+
+属性映射通常用于程序的特殊配置选项。
+
+#### 9.6.4 栈
+
+从1.0版开始，标准类库中就包含了 Stack 类，其中就有大家熟悉的 push 方法和 pop 方法。但是，Stack 类扩展为 Vector 类，从理论角度看，Vector 类并不太令人满意，它可以让栈使用不属于栈操作的 insert 和 remove 方法，即可以在任何地方进行插入或删除操作，而不仅仅在栈顶。
+
+#### 9.6.5 位集
+
+Java 平台的 BitSet 类用于存放一个位序列。如果需要高效地存储位序列，可以使用位集。
+
+BitSet 类提供了一个便于读取、设置或清除各个位的接口。使用这个接口可以避免屏蔽和麻烦的位操作。
+
+例如，对于一个名为 bucketOfBits 的 BitSet，
+
+```java
+bucketOfBits.get(i)
+```
+
+如果第 i 位处于“开”状态，就返回 true；否则返回 false。同样地，
+
+```java
+bucketOfBits.set(i)
+```
+
+将第 i 位设置为"开"状态。最后
+
+```java
+bucketOfBits.clear(i)
+```
+
+将第 i 位设置为“关”状态。
+
