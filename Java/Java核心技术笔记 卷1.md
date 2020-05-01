@@ -3238,3 +3238,132 @@ EnumMap<Weekday, Employee> personInCharge = new EnumMap<>(Weekday.class);
 
 ### 9.4 视图与包装器
 
+#### 9.4.1 轻量级集合包装器
+
+Arrays 类的静态方法 asList 可以返回一个包装了普通 Java 数组的 List 包装器。这个方法可以将数组传递给一个期望得到列表或集合参数的方法。
+
+```java
+Card[] cardDeck = new Card[52];
+...
+List<Card> cardList = Arrays.asList(cardDeck);
+```
+
+返回的对象不是 ArrayList。它是一个视图对象，带有访问底层数组的 get 和 set 方法。改变数组大小的所有方法（例如，与迭代器相关的 add 和 remove 方法）都会抛出一个 Unsupported OperationException 异常。
+
+asList 方法可以接受可变数目的参数。例如：
+
+```java
+List<String> names = Arrays.asList("Amy", "Bob", "Carl");
+```
+
+或者可以使用下面的方法：
+
+```java
+List<String> settings = Collections.nCopies(100, "DEFAULT");
+```
+
+创建了一个包含 100 个字符串的 List，每个串都被设置为 "DEFAULT"。
+
+注：Collections 类包含了很多实用的方法，这些方法的参数和返回值都是集合。不要将它与 Collection 接口混淆起来。
+
+#### 9.4.2 子范围
+
+可以为很多集合建立子范围（subrange）视图。例如，假设有一个列表 staff，想从中取出第10个~第19个元素。可以使用 subList 方法来获得一个列表的子范围视图。
+
+```java
+List group2 = staff.subList(10, 20);
+```
+
+第一个索引包含在内，第二个索引则不包含在内。这与 String 类的 substring 操作中的参数情况相同。
+
+可以将任何操作应用于子范围，并且能够自动地反映整个列表的情况。例如，可以删除整个子范围：
+
+```java
+group2.clear();
+```
+
+现在，元素自动从 staff 列表中清除了，并且 group2 为空。
+
+对于有序集与映射，可以使用下列方法进行范围操作元素。
+
+| 有序集（SortedSet）                 | 有序映射（SortedMap）                |
+| ----------------------------------- | ------------------------------------ |
+| SortedSet< E > subSet(E from, E to) | SortedMap<K, V> subMap(K from, K to) |
+| SortedSet< E > headSet(E to)        | SortedMap<K, V> headMap(K to)        |
+| SortedSet< E > tailSet(E from)      | SortedMap<K, V> tailMap(K from)      |
+
+在 Java SE 6引入的 `NavigableSet` 接口赋予了范围操作的更多控制能力。
+
+```java
+NavigableSet< E > subSet(E from, boolean fromInclusive, E to, boolean toInclusive)
+NavigableSet< E > headSet(E to, boolean toInclusive)
+NavigableSet< E > tailSet(E from, boolean fromInclusive)
+```
+
+#### 9.4.3 不可修改的视图
+
+`Collections` 还有几个方法，用于产生集合的不可修改视图（unmodifiable views）。这些视图对现有集合增加了一个运行时的检查。如果发现试图对集合进行修改，就抛出一个异常，同时这个集合将保持为修改的状态。
+
+8个不可修改视图的方法：
+
+```java
+Collections.unmodifiableCollection
+Collections.unmodifiableList
+Collections.unmodifiableSet
+Collections.unmodifiableSortedSet
+Collections.unmodifiableNavigableSet
+Collections.unmodifiableMap
+Collections.unmodifiableSortedMap
+Collections.unmodifiableNavigableMap
+```
+
+每个方法都定义与一个接口。例如，`Collections.unmodifiableList` 与 ArrayList、LinkedList 或者任何实现了 List 接口的其他类一起协同工作。
+
+例如，假设想要查看某部分代码，但又不触及某个集合的内容，就可以进行下列操作：
+
+```java
+List<String> staff = new LinkedList<>();
+...
+lookAt(Collections.unmodifiableList(staff));
+```
+
+`Collections.unmodifiableList` 方法将返回一个实现 List 接口的类对象。其访问器方法将从 staff 集合中获取值。所有的访问器方法，已经被重新定意思为抛出一个 `UnsupportedOperationException` 异常，而不是将调用传递给底层集合。
+
+不可修改视图并不是集合本身不可修改。仍然可以通过集合的原始引用，对集合进行修改。并且仍然可以让集合的元素调用更改器方法。
+
+视图只是包装了接口而不是实际的集合对象，所有只能访问接口中定义的方法。例如，LinkedList 类有一些非常方便的方法，addFirst 和 addLast，它们都不是 List 接口的方法，不能通过不可修改视图进行访问 。
+
+#### 9.4.4 同步视图
+
+如果由多个线程访问集合，就必须确保集不会被意外地破坏。例如，如果一个线程试图将元素添加到散列表中，同时另一个线程正在对散列表进行再散列，其结果将是灾难性的。
+
+类库的设计者使用视图机制来确保常规集合的线程安全，而不是实现线程安全的集合类。例如，Collections 类的静态 `synchronizedMap` 方法可以将任何一个映射表转换成具有同步访问方法的 Map:
+
+```java
+Map<String, Employee> map = Collections.synchronizedMap(new HashMap<String, Employee>());
+```
+
+现在，就可以由多线程访问 map 对象了。像 get 和 put 这类方法都是同步操作的，即在另一个线程调用另一个方法之前，刚才的方法调用必须彻底完成。
+
+#### 9.4.5 受查视图
+
+受查视图用来对泛型类型发生问题时提供调试支持。例如，将错误类型的元素混入泛型集合中。
+
+```java
+ArrayList<String> strings = new ArrayList<>();
+ArrayList rawList = strings;
+rawList.add(new Date());
+```
+
+这个错误的 add 命令在运行时检测不到。只有在另一部分代码中调用 get 方法，并将结果转化为 String 时，这个类才会抛出异常。
+
+受查视图可以探测到这类问题。下面定义了一个安全列表：
+
+```java
+List<String> safeStrings = Collections.checkedList(strings, String.class);
+```
+
+视图的 add 方法将检测插入的对象是否属于给定的类。如果不属于给定的类，就立即抛出一个 ClassCastException。这样做的好处是错误可以在正确的位置得以报告。
+
+### 9.5 算法
+
