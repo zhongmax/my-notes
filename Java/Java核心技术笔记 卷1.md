@@ -3641,4 +3641,101 @@ t.start();
 
 ### 14.2 中断线程
 
-当线程的 run 方法执行方法体中最后一条语句后，并经由执行 return 语句返回时，或者出现了在方法中没有捕获的异常时，
+当线程的 run 方法执行方法体中最后一条语句后，并经由执行 return 语句返回时，或者出现了在方法中没有捕获的异常时，线程将终止。在 Java 的早期版本中，还有一个 stop 方法，其他线程可以调用它终止线程。但是，这个方法现在已经被弃用了。
+
+没有可以强制线程终止的方法。然而，interrupt 方法可以用来请求终止线程。
+
+对一个线程调用 interrupt 方法时，线程的中断状态将被置位，这是每个线程都具有的 boolean 标志。每个线程都应该不时地检查这个标志，以判断线程是否被中断。
+
+要想弄清中断状态是否被置位，可以通过调用静态的 `Thread.currentThread` 方法获得当前线程，然后调用 isInterrupted 方法：
+
+```java
+while (!Thread.currentThread().isInterrupted() && more work to do) {
+    ...
+}
+```
+
+但是，如果线程被阻塞，就无法检测中断状态。这是产生 InterruptedException 异常的地方。当一个被阻塞的线程（调用 sleep 或 wait）上调用 interrupt 方法时，阻塞调用将会被 Interrupted Exception 异常中断。（存在不能被中断的阻塞 I/O 调用，应该考虑选择可中断的调用。）
+
+没有任何语言方面的需求要求一个被中断的线程应该终止。中断一个线程不过是引起它的注意。被中断的线程可以决定如何响应中断。某些线程是如此重要以至于应该处理完异常后，继续执行，而不理会中断。但是，更普遍的情况是，线程将简单地将中断作为一个终止的请求。这种线程的 run 方法具有以下形式：
+
+```java
+Runnable r = () -> {
+    try {
+        ...
+        while (!Thread.currentThread().isInterrupted() && more work to do) {
+            ...
+        }
+    }
+    catch(InterruptedException e) {
+        // thread was interrupted during sleep or wait
+    }
+    finally {
+        cleanup, if required
+    }
+    // exiting the run method terminates the thread
+};
+```
+
+如果在每次工作迭代之后都调用 sleep 方法（或者其他的可中断方法），isInterrupted 检测既没有必要也没有用处。如果在中断状态被置位时调用 sleep 方法，它不会休眠。相反，它将清除这一状态并抛出 InterrptedException。因此，如果你的循环调用 sleep，不会检测中断状态。捕获 InterruptedException 异常：
+
+```java
+Runnable r = () -> {
+    try {
+        ...
+        while (more work to do) {
+            ...
+            Thread.sleep(delay);
+        }
+    } catch(InterruptedException e) {
+        // thread was interrupted during sleep
+    } finally {
+        
+    }
+};
+```
+
+interrupted 与 isInterrupted 方法的区别
+
+| interrupted                      | isInterrupted              |
+| -------------------------------- | -------------------------- |
+| 静态方法                         | 实例方法                   |
+| 检测当前线程是否被中断           | 检验是否有线程被中断       |
+| 调用该方法会清除该线程的中断状态 | 调用该方法不会改变中断状态 |
+
+对于 InterruptedException 异常有两种合理的处理方式：
+
+- 在 catch 子句中调用 Thread.currentThread().interrupte() 来设置中断状态。调用者可以对其进行检测
+
+```java
+void mySubTask() {
+    try {
+        sleep(delay);
+    } catch(InterruptedException e) {
+        Thread.currentThread().interrupte();
+    }
+}
+```
+
+- 用 throws InterruptedException 标记你的方法，不采用 try 语句捕获异常。让调用者（或者，最终的 run 方法）捕获这一异常。
+
+```java
+void mySubTask() throws InterruptedException {
+    sleep(delay);
+}
+```
+
+### 14.3 线程状态
+
+线程有以下6种状态：
+
+- New（新创建）
+- Runnable（可运行）
+- Blocked（被阻塞）
+- Waiting（等待）
+- Timed waiting（计时等待）
+- Terminated（被终止）
+
+使用 getState 方法获取一个线程的当前状态。
+
+#### 14.3.1 新创建线程
