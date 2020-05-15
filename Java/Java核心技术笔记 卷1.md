@@ -3831,3 +3831,377 @@ ThreadGroup 类实现 `Thread.UncaughtExceptionHandler` 接口。它的 `uncaugh
 在大多数实际的多线程应用中，两个或两个以上的线程需要共享对同一数据的存取。如果两个线程存取相同的对象，并且每个线程都调用了一个修改该对象状态的方法，将会发生什么呢？可以想象，线程彼此踩了对方的脚。根据各线程访问数据的次序，可能会产生讹误的对象。这样的情况称为竞争条件（race condition）。
 
 #### 14.5.1 竞争条件的一个例子
+
+为了避免多线程引起的对共享数据的讹误，必须学习如何同步存取。在本节中，会举例没有使用同步会发生什么。在下一节中，将演示如何同步数据存取。
+
+我们模拟一个有若干账户的银行。随机地生成在这些账户之间转移钱款的交易。每一个账户有一个线程。每一笔交易中，会从线程所服务的账户中随机转移一定数目的钱款到另一个随机账户。
+
+```java
+public class Bank {
+    private final double[] accounts;
+
+    /**
+     * Constructs the bank
+     * @param n
+     * @param initialBalance
+     */
+    public Bank(int n, double initialBalance) {
+        accounts = new double[n];
+        Arrays.fill(accounts, initialBalance);
+    }
+
+    /**
+     * Transfers money from one account to another
+     * 使用 Bank 类的 transfer 方法，将一个账户转移一定数目的钱款到另一个账户
+     * @param from
+     * @param to
+     * @param amout
+     */
+    public void transfer(int from, int to, double amout) {
+        if (accounts[from] < amout) {
+            return ;
+        }
+        System.out.print(Thread.currentThread());
+        accounts[from] -= amout;
+        System.out.printf(" %10.2f from %d to %d", amout, from, to);
+        accounts[to] += amout;
+        System.out.printf("Total Balance: %10.2f%n", getTotalBalance());
+    }
+
+    /**
+     * Gets the sum of all account balances.
+     * @return
+     */
+    public double getTotalBalance() {
+        double sum = 0;
+        for (double account : accounts) {
+            sum += account;
+        }
+        return sum;
+    }
+
+    /**
+     * Gets the number of accounts in the bank.
+     * @return
+     */
+    public int size() {
+        return accounts.length;
+    }
+}
+```
+
+使用 Runnable 类的 run 方法，每次随机选择一个目标账户和随机账户，调用 transfer 方法，然后睡眠。
+
+```java
+public class UnsynchBankTest {
+    public static final int NACCOUNTS = 100;
+    public static final double INITIAL_BALANCE = 1000;
+    public static final double MAX_AMOUT = 1000;
+    public static final int DELAY = 10;
+
+    public static void main(String[] args) {
+        Bank bank = new Bank(NACCOUNTS, INITIAL_BALANCE);
+        for (int i = 0; i < NACCOUNTS; i++) {
+            int fromAccount = i;
+            Runnable r = () -> {
+                try {
+                    while (true) {
+                        int toAccount = (int) (bank.size() * Math.random());
+                        double amount = MAX_AMOUT * Math.random();
+                        bank.transfer(fromAccount, toAccount, amount);
+                        Thread.sleep((int)(DELAY * Math.random()));
+                    }
+                } catch (InterruptedException e) {
+
+                }
+            };
+            Thread t = new Thread(r);
+            t.start();
+        }
+    }
+}
+```
+
+在程序运行时，我们虽然不知道某个银行账户有多少钱，但是所有账户的总金额应该是不变的，因为转账操作不会是金额减少。
+
+但是程序的输出是这样的：
+
+```
+Total Balance: 1000000.00
+Total Balance: 1000000.00
+Total Balance: 1000000.00
+Total Balance: 99883.85
+Total Balance: 99883.85
+Total Balance: 99688.77
+```
+
+可以看到在程序最初，总金额保持在 1000000，但是过了一段时间，余额出现了轻微变化，总金额变少了。
+
+发生这样的原因是：随着线程的增多，会出现两个线程试图同时更新一个账户的时候，这时，余额要么增加，要么变少。
+
+#### 14.5.2 竞争条件详解
+
+上一节，我们知道总余额会发生增加或减少的原因，是因为有多个线程试图同时更新同一个账户导致的。
+
+这里，我们假定两个线程同时执行指令
+
+```java
+accounts[0] += amount;
+```
+
+问题在于这不是原子操作。该指令可能被处理如下：
+
+1）将 accounts[to] 加载到寄存器。
+
+2）增加 amount。
+
+3）将结果写回 accounts[to]。
+
+现在，假如第1个线程执行步骤1和2，然后，它被剥夺了运行权。假定第2个线程被唤醒并修改了 accounts 数组中的同一项。然后，第1个线程被唤醒并完成其第3步。
+
+这样，这一动作擦去了第二个线程所做的更新。于是，总金额不再正确。
+
+![](http://images.csmaxwell.xyz/20200515195634.png)
+
+出现这种讹误，主要是调度器在计算过程中剥夺了线程的运行权。对于这种问题，会不定出现，我们需要避免这样操作。
+
+#### 14.5.3 锁对象
+
+有两种机制防止代码块受并发访问的干扰。Java 提供了一个 synchronized 关键字达到这一目的，并且在 Java SE 5.0 引入了 ReentrantLock 类。 synchronized 关键字自动提供了一个锁以及相关的条件，对于大多数需要显式锁的情况，这是很便利的。
+
+使用 ReentrantLock 保护代码块的基本结构如下：
+
+```java
+myLock.lock();
+try {
+    ...
+} finall {
+    myLock.unlock();
+}
+```
+
+这一结构确保了任何时刻只有一个线程进入临界区。一旦一个线程封锁了锁对象，其他任何线程都无法通过 lock 语句。当其他线程调用 lock 时，它们被阻塞，直到第一个线程释放锁对象。
+
+注：将解锁操作放在 finally 子句中，是非常重要的，如果临界区代码抛出异常，锁必须释放，否则，其他线程将永远阻塞。
+
+如果使用锁，就不能使用带资源的 try 语句。
+
+下面使用锁来保护 Bank 类的 transfer 方法。
+
+```java
+public void transfer(int from, int to, double amout) {
+    if (accounts[from] < amout) {
+        return ;
+    }
+    bankLock.lock();
+    try {
+        System.out.print(Thread.currentThread());
+        accounts[from] -= amout;
+        System.out.printf(" %10.2f from %d to %d", amout, from, to);
+        accounts[to] += amout;
+        System.out.printf("Total Balance: %10.2f%n", getTotalBalance());
+    } finally {
+        bankLock.unlock();
+    }
+}
+```
+
+现在一个线程调用 transfer，在执行结束前被剥夺了运行权。假定第二个线程也调用 transfer，由于第二个线程不能获得锁，将在调用 lock 方法时被阻塞。它必须等待第一个线程完成 transfer 方法的执行后才能再度被激活。当第一个线程释放锁时，那么第二个线程才能开始运行。
+
+![](http://images.csmaxwell.xyz/20200515201443.png)
+
+现在运行程序，总余额将一直保持在 1000000，每个 Bank 对象都有自己的 ReentrantLock 对象。如果两个线程试图访问同一个 Bank 对象，那么锁以串行方式提供服务。当两个线程访问不同的 Bank 对象，每一个线程得到了不同的锁对象，两个线程都不会发生阻塞。
+
+锁是可重入的，因为线程可以重复地获取已经持有的锁。锁保持一个持有计数来跟踪对 lock 方法的嵌套调用。线程在每一次调用 lock 都要调用 unlock 来释放锁。由于这个特性，被一个锁保护的代码可以调用另一个使用相同的锁的方法。
+
+例如，transfer 方法调用 getTotalBalance 方法，这也会封锁 bankLock 对象，此时 bankLock 对象的持有计数为 2.当 getTotalBalance 方法退出的时候，持有计数变回1。当 transfer 方法退出的时候，持有计数变为 0。线程释放锁。
+
+通常，可能想要保护由若干个操作来更新或检查共享对象的代码块。要确保这些操作完成后，另一个线程才能使用相同对象。
+
+注：要留心临界区中的代码，不要因为异常的抛出而跳出临界区。如果在临界区代码结束之前抛出了异常，finally 子句将释放锁，但可能使对象处于受损状态。
+
+```java
+void lock();
+// 获取这个锁，如果锁同时被另外一个线程拥有则会发生阻塞
+void unlock();
+// 释放这个锁
+ReentrantLock();
+// 构建一个可以被用来保护临界区的可重入锁。
+ReentrantLock(boolean fair);
+// 构建一个带有公平策略的锁。一个公平锁偏爱等待时间最长的线程
+// 这会大大降低性能，默认，锁没有强制为公平的
+```
+
+注：公平锁比常规锁要慢得多，只有当你确实了解自己要做什么，对于你要解决的问题有特定的理由必须使用公平锁，才使用公平锁。即使使用公平锁，也无法确保线程调度器是公平的。如果线程调度器选择忽略一个线程，则没有机会公平地处理这个锁。
+
+#### 14.5.4 条件对象
+
+通常，线程进入临界区，却发现在某一条件满足之后它才能执行。要使用一个条件对象来管理那些已经获得了一个锁但是却不能做有用工作的线程。在这一节里，我们介绍 Java 库中条件对象的实现。（条件对象常被称为条件变量(conditional variable) ）。
+
+现在我们来细化银行的模拟程序。我们要避免选择没有足够资金的账户作为转出账户。避免下面这样的代码：
+
+```java
+if (bank.getBalance(from) >= amount) {
+    bank.transfer(from, to, amount);
+}
+```
+
+线程完全有可能在成功通过 if 语句，在调用 transfer 方法前被中断，当线程再次运行时，账户余额可能已经低于提款金额。必须确保没有其他线程在检查余额与转账活动之间修改余额。通过使用锁来保护检查与转账动作来做到这一点：
+
+```java
+public void transfer(int from, int to, int amount) {
+    bankLock.lock();
+    try {
+        while (accounts[from] < amount) {
+            ...
+        }
+        ...
+    } finally {
+        bankLock.unlock();
+    }
+}
+```
+
+现在，当账户中没有足够的余额时，只有等待另一个线程向账户注入资金。但是，这一线程刚刚获得了 bankLock 的排它性访问，因此别的线程没有进行存款操作的机会。这就是需要条件对象的原因。
+
+一个锁对象可以有一个或多个相关的条件对象。你可以用 newCondition 方法获得一个条件对象。
+
+```java
+class Bank {
+    private Condition sufficientFunds;
+    
+    public Bank() {
+        ...
+        sufficientFunds = bankLock.newCondition();
+    }
+}
+```
+
+如果 transfer 方法发现余额不足，它调用
+
+```java
+sufficientFunds.await();
+```
+
+当前线程现在被阻塞了，并放弃了锁。这样我们可以使用另外一个线程进行增加余额的操作。
+
+等待获得锁的线程和调用 await 方法的线程存在本质上的不同。一旦一个线程调用 await 方法，它进入该条件的等待集。当锁可用时，该线程不能马上解除阻塞。相反，它处于阻塞状态，直到另一个线程调用同一条件上的 signalAll 方法时为止。
+
+当另一个线程转账时，它应该调用
+
+```java
+sufficientFunds.signalAll();
+```
+
+这一调用重新激活因为这一条件而等待的所有线程。当这些线程从等待集当中移出时，它们再次成为可运行的，调度器将再次激活它们。同时，它们将试图重新进入该对象。一旦锁成为可用的，它们中的某个将从 await 调用返回，获得该锁并从阻塞的地方继续执行。
+
+此时，线程应该再次测试该条件。由于无法确保该条件被满足——signalAll 方法仅仅是通知正在等待的线程：此时有可能已经满足条件，值得再次去检测该条件。
+
+注：通常，对 await 的调用应该在如下形式的循环体中
+
+```java
+while (!(ok to proceed)) {
+    condition.await();
+}
+```
+
+至关重要的是最终需要某个其他线程调用 signalAll 方法。当一个线程调用 await 时，它没有办法重新激活自身。它寄希望于其他线程。如果没有其他线程来重新激活等待的线程，它就永远不再运行了。这将导致死锁（deadlock）现象。如果所有其他线程被阻塞，最后一个活动线程在解除其他线程的阻塞状态之前就调用 await 方法，那么它也被阻塞。没有任何线程可以解除其他线程的阻塞，那么该程序就挂起了。
+
+应该何时调用 signalAll，从经验上说，对象的状态有利于等待线程的方向改变时调用 signalAll。例如，当一个账户余额发生改变时，等待的线程应该有机会检查余额。
+
+```java
+// 当完成了转账时，调用 signalAll 方法
+public void transfer(int from, int to, int mount) {
+    bankLock.lock();
+    try {
+        while (accounts[from] < amount) {
+            sufficientFunds.await(); 
+        }
+        ...
+        sufficientFunds.signalAll();
+    } finally {
+        bankLock.unlock();
+    }
+}
+```
+
+注意调用 signalAll 不会立即激活一个等待线程。它仅仅解除等待线程的阻塞，以便这些线程可以在当前线程退出同步方法之后，通过竞争实现对对象的访问。
+
+另一个方法 signal，则是随机解除等待集中某个线程的阻塞状态。这比解除所有线程的阻塞更加有效，但也存在危险。如果随机选择的线程发现自己仍然不能运行，那么它再次被阻塞。如果没有其他线程再次调用 signal，那么系统就死锁了。
+
+当一个线程拥有某个条件的锁时，它仅仅可以在该条件上调用 await、signalAll 或 signal 方法。
+
+#### 14.5.5 synchronzied 关键字
+
+在前面，我们介绍了 Lock 和 Condition 对象。总结一下锁与条件的关键之处：
+
+- 锁用来保护代码片段，任何时刻只能有一个线程执行被保护的代码。
+- 锁可以管理试图进入被保护代码段的线程。
+- 锁可以拥有一个或多个相关的条件对象。
+- 每个条件对象管理那些已经进入被保护的代码段但还不能运行的线程。
+
+Lock 和 Condition 接口为程序设计人员提供了高度的锁定控制。然而，大多数情况下，并不需要那样的控制，并且可以使用一种嵌入到 Java 语言内部的机制。从 1.0 开始，Java 中每一个对象都有一个内部锁。如果一个方法用 synchronized 关键字声明，那么对象的锁将保护整个方法。也就是说，要调用该方法，线程必须获得内部的对象锁。
+
+```java
+public synchronized void method() {
+    method body
+}
+// 等价于
+public void method() {
+    this.intrinsicLock.lock();
+    try {
+        method body
+    } finally {
+        this.intrinsicLock.unlock();
+    }
+}
+```
+
+例如，可以简单地声明 Bank 类的 transfer 方法为 synchronized，而不是使用一个显式的锁。
+
+内部对象锁只有一个相关条件。wait 方法添加一个线程到等待集中，notifyAll/ notify 方法解除等待线程的阻塞状态。换句话说，调用 wait 或 notifyAll 等价于 
+
+```java
+intrinsicCondition.await();
+intrinsicCondition.signalAll();
+```
+
+注：wait、notifyAll 以及 notify 方法是 Object 类的 final 方法。Condition 方法必须被命令为 await、signalAll 和 signal 以便它们不会与那些方法发生冲突。
+
+```java
+// 实现 Bank 类
+class Bank {
+    private double[] accounts;
+    
+    public synchronized void transfer(int from, int to, int amount) throws InterruptedException {
+        while (accounts[from] < amount) {
+            wait();
+        }
+        accounts[from] -= amount;
+        accounts[to] += amount;
+        notifyAll();
+    }
+    
+    public synchronized double getTotalBalance() {
+        ...
+    }
+}
+```
+
+可以看到，使用 synchronized 关键字来编写代码要简介得多。当然，要理解这一代码，你必须了解每一个对象有一个内部锁，并且该锁有一个内部条件。有锁管理那些试图进入 synchronized 方法的线程，由条件来管理那些调用 wait 的线程。
+
+将静态方法声明为 synchronized 也是合法的。如果调用这种方法，该方法获得相关的类对象的内部锁。例如，如果 Bank 类有一个静态同步的方法，那么当该方法被调用时，Bank.class 对象的锁被锁住。因此，没有其他线程可以调用同一个类的这个或任何其他的同步静态方法。
+
+内部锁与条件存在一些局限。包括：
+
+- 不能中断一个正在试图获得锁的线程。
+- 试图获得锁时不能设定超时。
+- 每个锁仅有单一的条件，可能是不够的。
+
+在代码中应该使用哪一种？Lock 和 Condition 对象还是同步方法？
+
+- 最好既不使用 Lock/Condition 也不使用 synchronized 关键字。很多情况可以使用 java.util.concurrent 包中的一种机制，它会为你处理所有的加锁。在 14.6 节，你会看到如何使用阻塞队列来同步完成一个共同任务的线程。
+- 如果 synchronized 关键字适合你的程序，那么请尽量使用它，这样可以减少编写的代码数量，减少出错的几率。
+- 如果特别需要 Lock/Condition 结构提供的独有特性时，才使用 Lock/Condition。
+
+#### 14.5.6 同步阻塞
