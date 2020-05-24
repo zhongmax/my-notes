@@ -4205,3 +4205,182 @@ class Bank {
 - 如果特别需要 Lock/Condition 结构提供的独有特性时，才使用 Lock/Condition。
 
 #### 14.5.6 同步阻塞
+
+每一个 Java 对象有一个锁。线程可以通过调用同步方法获得锁。还有另一种机制可以获得锁，通过进入一个同步阻塞。当线程进入下面形式的阻塞：
+
+```java
+// 获得 obj 锁
+synchronized (obj) {
+    critical section
+}
+```
+
+使用“特殊的”锁：
+
+```java
+public class Bank {
+    private double[] accounts;
+    private Object lock = new Object();
+    ...
+    public void transfer(int from, int to, int amount) {
+        synchronized (lock) {
+            accounts[from] -= amount;
+            accounts[to] += amount;
+        }
+        System.out.println(...);
+    }
+}
+```
+
+lock 对象为每个 Java 对象持有的锁。
+
+使用一个对象的锁来实现额外的原子操作，这种操作称为客户端锁定。
+
+客户端锁定非常脆弱的，通常不推荐使用。
+
+#### 14.5.7 监视器概念
+
+锁与条件是线程同步的强大工具，但是他们不是面向对象的。对于保证多线程安全，最成功的解决方案是——监视器（monitor）,监视器具有以下特性：
+
+- 监视器是只包含私有域的类。
+- 每个监视器类的对象有一个相关的锁。
+- 使用该锁对所有的方法进行加锁。换句话说，如果客户端调用 obj.method()，那么 obj 对象的锁在方法调用开始时自动获得，并且当方法返回时自动释放该锁。因为所有的域都是私有的，这样的安排确保了一个线程在对对象操作时，没有其他线程能访问该域。
+- 该锁可以有任意多个相关条件。
+
+Java 的设计者以不是很精确的方式采用了监视器概念，Java 中每个对象都有一个内部的锁和内部的条件。如果一个方法用 sychronized 关键字声明，那么，它表现的就像一个监视器方法。通过调用 wait/notifyAll/notify 来访问条件变量。
+
+但是，Java对象与监视器又有所不同，导致线程的安全下降：
+
+- 域可以不是 private
+- 方法可以不为 synchronized
+- 内部锁对客户是可用的
+
+#### 14.5.8 Volatile 域
+
+在现代的处理器与编译器上，不使用同步，可能会发现错误，主要原因是：
+
+- 多处理器的计算机能够暂时在寄存器或本地内存缓冲区中保存内存中的值，但是，运行在不同处理器上的线程也许在同一个内存位置取到不同的值。
+- 编译器可以改变指令执行的顺序以使吞吐量最大化。这种顺序不会改变代码的语义，但是编译器假定内存的值仅仅在代码中有显式的修改指令时才会改变。然鹅，内存的值可以被另一个线程改变！
+
+使用锁来保护多个线程访问的代码，就不用考虑这种问题。编译器被要求通过在必要的时候刷新本地缓存来保持锁的效应，并且不能不正当地重新排序指令
+
+> Brian Goetz 给出了下述“同步格言”：如果向一个变量写入值，而这个变量接下来可能会被另一个线程读取。或者，从一个变量读值，而这个变量可能是之前被另一个线程写入的，此时必须使用同步。
+
+而 volatile 关键字为实例域的同步访问提供了一种免锁机制。声明一个域为 volatile，那么编译器和虚拟机就知道该域可能被另一个线程并发更新的。
+
+例如，假定一个对象有一个布尔标记 done，它的值被一个线程设置却被另一个线程查询，如同我们讨论过的那样，你可以使用锁：
+
+```java
+private boolean done;
+public synchronized boolean isDone() {
+    return done;
+}
+public synchronized void setDone() {
+    done = true;
+}
+```
+
+或许使用内部锁不是个好主意。如果另一个线程已经对该对象加锁，isDone 和 setDone 方法可能阻塞。如果注意到这个方面，一个线程可以为这一变量使用独立的 Lock。但是，这也会带来许多麻烦。
+
+这种情况下，将域声明为 volatile 是合理的：
+
+```java
+private volatile boolean done;
+public boolean isDone() {
+    return done;
+}
+public void setDone() {
+    done = true;
+}
+```
+
+Volatile 变量不能提供原子性。例如，方法
+
+```java
+public void flipDone() {
+    done = !done;
+}
+```
+
+不能确保翻转域中的值。不能保证读取、翻转和写入不被中断。
+
+#### 14.5.9 final 变量
+
+上一节我们已经了解到，除非使用锁或 volatile 修饰符，否则无法从多个线程安全地读取一个域。
+
+还有一种情况可以安全地访问一个共享域，即这个域声明为 final 时。考虑下面这个声明：
+
+```java
+final Map<String, Double> accounts = new HashMap<>();
+```
+
+其他线程会在构造函数完成构造之后才看到这个 accounts 变量。
+
+如果不使用 final，就不能保证其他线程看到的是 accounts 更新后的值，它们可能都只是看到 null，而不是新构造的 HashMap。
+
+当然，对这个映射表的操作并不是线程安全的。如果多个线程在读写这个映射表，仍然需要进行同步。
+
+#### 14.5.10 原子性
+
+假设对共享变量除了赋值之外并不完成其他操作，那么可以将这些共享变量声明为 volatile。
+
+`java.util.concurrent.atomic` 包中有很多类使用了很高效的机器级指令来保证其他操作的原子性。例如，AtomicInteger 类提供了方法 incrementAndGet 和 decrementAndGet，它们分别以原子方式将一个整数自增或自减。
+
+#### 14.5.11 死锁
+
+锁和条件不能解决多线程中的所有问题。考虑下面的情况：
+
+```
+账户1：$200
+账户2：$300
+线程1：从账户1转移$300到账户2
+线程2：从账户2转移$400到账户1
+```
+
+运行这个程序，会发现线程1和线程2都被阻塞了，因为两个账户的余额都不足以进行转账。
+
+有可能会因为每一个线程要等待更多的钱存入而导致所有的线程都被阻塞。这样的状态被称为死锁（deadlock）
+
+Java 中没有任何东西可以避免或打破这种死锁现象。必须仔细设计程序，以确保不会出现死锁。
+
+#### 14.5.12 线程局部变量
+
+前面几节中，我们讨论了在线程间共享变量的风险。有时可能要避免共享变量，使用 ThreadLocal 辅助类为各个线程提供各自的实例。例如，SimpleDateFormat 类不是线程安全的。假设有一个静态变量：
+
+```java
+public static final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+```
+
+如果两个线程都执行以下操作：
+
+```java
+String dateStamp = dateFormat.format(new Date());
+```
+
+结果可能很混乱，因为 dateFormat 使用的内部数据结构可能会被并发的访问所破坏。当然可以使用同步，但开销很大；或者也可以在需要时构造一个局部 SimpleDateFormat 对象，不过也太浪费了。
+
+要为每个线程构造一个实例，可以使用以下代码：
+
+```java
+public static final ThreadLocal<SimpleDateFormat> dateFormat = 
+    ThreadLocal.withInitial(() -> new SimpleDateFormat("yyyy-MM-dd"));
+```
+
+要访问具体的格式化方法，可以调用：
+
+```java
+String dateStamp = dateFormat.get().format(new Date());
+```
+
+在一个给定线程中首次调用 get 时，会调用 initialValue 方法。在此之后，get 方法会返回属于当前线程的那个实例。
+
+在多个线程中生成随机数也存在类似的问题。`java.util.Random` 类是线程安全的。但是如果多个线程需要等待一个共享的随机数生成器，这会很低效。
+
+可以使用 ThreadLocal 辅助类为各个线程提供一个单独的生成器，不过在 Java SE 7 中提供了一个便利类。只需要做以下调用：
+
+```java
+int random = ThreadLocalRandom.current().nextInt(upperBound);
+```
+
+ThreadLocalRandom.current() 调用会返回特定于当前线程的 Random 类实例。
+
