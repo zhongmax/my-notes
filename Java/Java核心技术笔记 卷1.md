@@ -4384,3 +4384,104 @@ int random = ThreadLocalRandom.current().nextInt(upperBound);
 
 ThreadLocalRandom.current() 调用会返回特定于当前线程的 Random 类实例。
 
+#### 14.5.13 锁测试与超时
+
+线程在调用 lock 方法来获得另一个线程所持有的锁的时候，很可能发生阻塞。
+
+可以使用 tryLock 方法试图申请一个锁，成功获得锁返回 try，否则立即返回 false，线程可以立即离开去做其他事情。
+
+```java
+if (myLock.tryLock()) {
+    ...
+    try {
+        ...
+    } finally {
+        myLock.unlock();
+    }
+} else {
+    ...
+}
+```
+
+在调用 tryLock 时，可以使用超时参数：
+
+```java
+if (myLock.tryLock(100, TimeUnit.MILLISECONDS))
+```
+
+TimeUnit 是一个枚举类型，可以取：SECONDS、MILLISECONDS、MICROSECONDS 和 NANOSECONDS。
+
+lock 方法不能被中断。如果一个线程在等待获得一个锁时被中断，中断的线程在获得锁之前一直处于阻塞状态。如果出现死锁，那么，lock 方法就无法终止。
+
+而使用带有超时参数的 tryLock，如果线程在等待期间被中断，将抛出 InterruptedException 异常。这允许程序打破死锁。
+
+也可以调用 lockInterruptibly 方法。它就相当于一个超时设为无限的 tryLock 方法。
+
+在等待一个条件时，也可以提供一个超时：
+
+```java
+myCondition.await(100, TimeUnit.MILLISECONDS)
+```
+
+如果一个线程被另一个线程通过调用 signalAll 或 signal 激活，或者超时时限已达到，或者线程被中断，那么 await 方法将返回。
+
+如果等待的线程被中断，await 方法将抛出一个 InterruptedException 异常。在你希望出现这种情况时线程继续等待，可以使用 awaitUninterruptibly 方法替代 await。
+
+#### 14.5.14 读/写锁
+
+`java.util.concurrent.locks` 包定义了两个锁类，我们已经讨论的  ReentrantLock 类和 ReentrantReadWriteLock 类。如果很多线程从一个数据结构读取数据而很少线程修改其中数据的话，后者是十分有用的。在这种情况下，允许对读者线程共享访问是合适的。当然，写者线程依然是互斥访问的。
+
+读/写锁的步骤：
+
+1）构造一个 ReentrantReadWriteLock 对象：
+
+```java
+private ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
+```
+
+2）抽取读锁和写锁：
+
+```java
+private Lock readLock = rwl.readLock();
+private Lock writeLock = rwl.writeLock();
+```
+
+3）对所有的获取方法加读锁：
+
+```java
+public double getTotalBalance() {
+    readLock.lock();
+    try {
+        ...
+    } finally {
+        readLock.unlock();
+    }
+}
+```
+
+4）对所有的修改方法加写锁：
+
+```java
+public void transfer(...) {
+    writeLock.lock();
+    try {
+        ...
+    } finally {
+        writeLock.unlock();
+    }
+}
+```
+
+#### 14.5.15 为什么弃用 stop 和 suspend 方法
+
+在初始的 Java 版本定义了一个 stop 方法用来终止一个线程，以及一个 suspend 方法用来阻塞一个线程直至另一个线程调用 resume。stop 和 suspend 方法有一些共同点：都试图控制一个给定线程的行为。
+
+stop、suspend 和 resume 方法已经弃用。stop 方法天生就不安全，经验证明 suspend 方法会经常导致死锁。
+
+首先是 stop 方法，该方法会终止所有未结束的方法，包括 run 方法。当线程被终止，立即释放被它锁住的所有对象的锁。这会导致对象处于不一致的状态。例如，假定 TransferThread 在从一个账户向另一个账户转账的过程中被终止，钱款已经转出，却没有转入目标账户，现在银行对象就被破坏了。因为锁已经被释放，这种破坏会被其他尚未停止的线程观察到。
+
+当线程要终止另一个线程时，无法知道什么时候调用 stop 方法是安全的，什么时候导致对象被破坏。因此，该方法被弃用了。在希望停止线程的时候应该中断线程，被中断的线程会在安全的时候停止。
+
+在来看看 suspend 方法，与 stop 不同，suspend 不会破坏对象。但是，如果用 suspend 挂起一个持有一个锁的线程，那么，该锁在恢复之前是不可用的。如果调用 suspend 方法的线程试图获得同一个锁，那么程序死锁：被挂起的线程等着恢复，而将其挂起的线程等待获得锁。
+
+### 14.6 阻塞队列
