@@ -1,5 +1,7 @@
 # Java核心技术笔记
 
+> 14 章 并发，后面有些看不懂了，可以会弃坑了....
+
 ## 第三章 Java基础
 
 ### 3.1 String的常用方法
@@ -4524,3 +4526,70 @@ stop、suspend 和 resume 方法已经弃用。stop 方法天生就不安全，�
 注：与之形成对照的是，集合如果在迭代器构造之后发生改变，java.util 包中的迭代器将抛出一个 ConcurrentModificationException 异常。
 
 并发的散列映射表，可高效地支持大量的读者和一定数量的写者。默认情况下，假定可以有多达16个写者线程同时执行。可以有更多的写者线程，但是，如果同一时间多于16个，其他线程将被阻塞。
+
+#### 14.7.2 映射条目的原子更新
+
+ConcurrentHashMap 原来的版本只有为数不多的方法可以实现原子更新，假设我们希望使用多线程统计单词的频率。
+
+使用 ConcurrentHashMap<String, Long>，让计数自增的代码：
+
+```java
+Long oldValue = map.get(word);
+Long newValue = oldValue == null ? 1 : oldValue + 1;
+map.put(word, newValue);
+```
+
+上面的代码是线程不安全的，可能有另一个线程在同时更新同一个计数。
+
+注：线程安全的数据结构允许非线程安全的操作，会破坏线程安全，一种是多个线程修改一个普通的 HashMap，它会破坏内部结构。对于 ConcurrentHashMap 不会发生多线程修改破坏结构，但是在操作的序列不是原子的，结果也是不可预知的。
+
+传统的做法是使用 replace 操作，它以原子方式用一个新值替换原值，前提是之前没有其他线程把原值替换为其他值，一直这么操作，知道 replace 成功：
+
+```java
+do {
+    oldValue = map.get(word);
+    newValue = oldValue == null ? 1 : oldValue + 1;
+} while (!map.replace(word, oldValue, newValue));
+```
+
+或者可以使用一个 `ConcurrentHashMap<String, AtomicLong>` ，或者在 Java SE 8 中，使用 `ConcurrentHashMap<String, LongAdder>` 更新代码如下：
+
+```java
+map.putIfAbsent(word, new LongAdder());
+map.get(word).increment();
+```
+
+第一个语句确保有一个 LongAdder 可以完成原子自增。由于 putIfAbsent 返回映射的值（可能是原来的值，或者是新设置的值），所有可以组合这两个语句：
+
+```java
+map.putIfAbsent(word, new LongAdder()).increment();
+```
+
+Java SE 8 提供了一些可以更方便地完成原子更新的方法。调用 compute 方法时提供一个键和一个计算新值的函数。这个函数接收键和相关联的值 (如果没有值，则为 null)，它会计算新值。例如，更新一个整数计数器的映射：
+
+```java
+map.compute(word, (k, v) -> v == null ? 1 : v + 1);
+```
+
+注：ConcurrentHashMap 中不允许有 null 值。有很多方法都使用 null 值来指示映射中某个给定的键不存在。
+
+另外还有 computeIfPresent 和 computeIfAbsent 方法，它们分别只在有原值的情况下计算新值，或者只有没有原值的情况下计算新值。下面更新一个 LongAdder 计数器映射：
+
+```java
+map.computeIfAbsent(word, k -> new LongAdder()).increment();
+```
+
+这与之前看到的 putIfAbsent 调用几乎是一样的，不过 LongAdder 构造器只在确实需要一个新的计数器时才会调用。
+
+首次增加一个键时通常需要做某些特殊的处理。利用 merge 方法可以非常方便地做到这一点。这个方法有一个参数表示键不存在时使用的初始值。否则，就会调用你提供的函数来结合原值与初始值。（与 compute 不同，这个函数不处理键）
+
+```java
+map.merge(word, 1L, (existingValue, newValue) -> existingValue + newValue);
+// or
+map.merge(word, 1L, Long::sum)
+```
+
+注：如果传入 compute 或 merge 的函数返回 null，将从映射中删除现有的条目。
+
+⚠️：使用 compute 或 merge 时，要记住你提供的函数不能做太多工作。这个函数运行时，可能会阻塞对映射的其他更新。当然，这个函数也不能更新映射的其他部分。
+
