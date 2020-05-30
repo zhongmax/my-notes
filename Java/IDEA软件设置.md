@@ -53,5 +53,9 @@ ctrl/cmd + shift + r 在当前项目中替换
 按住 ctrl/cmd + 鼠标左键 跳转到点击的类、方法的地方
 ctrl/cmd + [/] 返回上次鼠标点击的位置 （超实用）
 alt+shift + 左键 多行输入
+shift+f6 选择需要修改的变量名，批量修改
 ```
 
+### 7 修改代码自动补全快捷键
+
+settings -> keymap -> main menu -> code -> code completion -> Basic 修改为你喜欢的快捷键
