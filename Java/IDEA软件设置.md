@@ -54,6 +54,7 @@ ctrl/cmd + shift + r 在当前项目中替换
 ctrl/cmd + [/] 返回上次鼠标点击的位置 （超实用）
 alt+shift + 左键 多行输入
 shift+f6 选择需要修改的变量名，批量修改
+ctrl/cmd + alt + t 选中代码，打开surround with，可以快捷设置try/catch等操作
 ```
 
 ### 7 修改代码自动补全快捷键
